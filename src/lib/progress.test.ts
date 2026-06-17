@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { SetEntry, WorkoutSession } from "../types";
 import { calculateProgressPoints, getLatestSetsByNumber } from "./progress";
+import { buildTrainingDays, getNextQuickSessionCount } from "./trainingCalendar";
 
 const sessions: WorkoutSession[] = [
   { id: "s1", templateId: "t1", date: "2026-06-01", createdAt: "2026-06-01T12:00:00.000Z" },
@@ -29,5 +30,29 @@ describe("progress helpers", () => {
       { date: "2026-06-01", bestWeight: 45, weightLabel: "45", repsLabel: "6", sessionId: "s1" },
       { date: "2026-06-08", bestWeight: 50, weightLabel: "50", repsLabel: "6", sessionId: "s2" },
     ]);
+  });
+
+  it("caps training calendar colors at two sessions per day", () => {
+    const days = buildTrainingDays(
+      [
+        ...sessions,
+        { id: "s3", templateId: "run", date: "2026-06-08", createdAt: "2026-06-08T18:00:00.000Z", kind: "quick" },
+        { id: "s4", templateId: "run", date: "2026-06-08", createdAt: "2026-06-08T19:00:00.000Z", kind: "quick" },
+      ],
+      "2026-06-08",
+      8,
+    );
+
+    expect(days.find((day) => day.date === "2026-06-01")?.count).toBe(1);
+    expect(days.find((day) => day.date === "2026-06-08")?.count).toBe(2);
+  });
+
+  it("cycles quick session counts without deleting planned workouts", () => {
+    expect(getNextQuickSessionCount(0, 0)).toBe(1);
+    expect(getNextQuickSessionCount(0, 1)).toBe(2);
+    expect(getNextQuickSessionCount(0, 2)).toBe(0);
+    expect(getNextQuickSessionCount(1, 0)).toBe(1);
+    expect(getNextQuickSessionCount(1, 1)).toBe(0);
+    expect(getNextQuickSessionCount(2, 0)).toBe(0);
   });
 });

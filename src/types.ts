@@ -40,6 +40,7 @@ export interface WorkoutSession {
   id: string;
   templateId: string;
   date: string;
+  kind?: "workout" | "quick";
   painLevel?: number;
   notes?: string;
   createdAt: string;

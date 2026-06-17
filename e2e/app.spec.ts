@@ -4,11 +4,23 @@ import path from "node:path";
 test("records fixed leg plan and monthly upper plan, then charts progress", async ({ page, context, browserName }, testInfo) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Entrenar" })).toBeVisible();
+  await expect(page.getByTestId("day-progress")).toContainText("0 de 6");
+
+  await page.getByRole("button", { name: "Sentadilla con barra hecho" }).click();
+  await expect(page.getByTestId("day-progress")).toContainText("1 de 6");
+  await expect(page.getByTestId("day-progress")).toContainText("5 quedan");
 
   await page.getByLabel("Sentadilla con barra serie 1 peso").fill("50");
   await page.getByLabel("Sentadilla con barra serie 1 reps").fill("6");
+  const savedDate = await page.getByLabel("Fecha").inputValue();
   await page.getByTestId("save-workout").click();
   await expect(page.getByRole("status")).toContainText("Entrenamiento guardado");
+  const savedDateSquare = page.locator(`[aria-label^="${savedDate}:"]`);
+  await expect(savedDateSquare).toHaveAttribute("data-count", "1");
+
+  await savedDateSquare.click();
+  await expect(savedDateSquare).toHaveAttribute("data-count", "2");
+  await expect(page.getByRole("status")).toContainText("Entrenamiento rápido guardado");
 
   await page.reload();
   await expect(page.getByLabel("Sentadilla con barra serie 1 peso")).toHaveValue("50");

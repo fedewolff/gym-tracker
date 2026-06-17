@@ -26,6 +26,12 @@ import { getAvailableMonths, getDefaultMonthId } from "./data/seed";
 import { db, ensureSeeded, exportBackup, importBackup } from "./lib/db";
 import { uid } from "./lib/ids";
 import { calculateProgressPoints, getLatestAnySet, getLatestSetsByNumber } from "./lib/progress";
+import {
+  buildTrainingDays,
+  getNextQuickSessionCount,
+  isQuickSession,
+  QUICK_SESSION_TEMPLATE_ID,
+} from "./lib/trainingCalendar";
 import { extractWeightNumber, formatWeight } from "./lib/weights";
 import type { BackupPayload, Exercise, SetEntry, WorkoutSession, WorkoutTemplate, WorkoutTemplateExercise } from "./types";
 
@@ -78,6 +84,10 @@ function downloadJson(filename: string, payload: unknown): void {
 function seriesLabel(count?: number): string {
   const value = count ?? 1;
   return `${value}x`;
+}
+
+function exerciseProgressKey(item: WorkoutTemplateExercise): string {
+  return `${item.order}:${item.exerciseId}`;
 }
 
 export default function App() {
@@ -135,6 +145,7 @@ export default function App() {
       id: sessionId,
       templateId: template.id,
       date,
+      kind: "workout",
       painLevel,
       notes,
       createdAt: new Date().toISOString(),
@@ -162,6 +173,45 @@ export default function App() {
     });
     await loadData();
     setStatus("Entrenamiento guardado");
+  };
+
+  const toggleQuickTraining = async (date: string) => {
+    const daySessions = data.sessions.filter((session) => session.date === date);
+    const quickSessions = daySessions
+      .filter(isQuickSession)
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    const normalCount = daySessions.length - quickSessions.length;
+    const nextQuickCount = getNextQuickSessionCount(normalCount, quickSessions.length);
+
+    if (normalCount >= 2 && quickSessions.length === 0) {
+      setStatus("Ese día ya tiene 2 entrenamientos");
+      return;
+    }
+
+    await db.transaction("rw", db.sessions, async () => {
+      if (nextQuickCount > quickSessions.length) {
+        const missing = nextQuickCount - quickSessions.length;
+        const now = Date.now();
+        await db.sessions.bulkPut(
+          Array.from({ length: missing }, (_, index) => ({
+            id: uid("session"),
+            templateId: QUICK_SESSION_TEMPLATE_ID,
+            date,
+            kind: "quick" as const,
+            notes: "Registro rapido",
+            createdAt: new Date(now + index).toISOString(),
+          })),
+        );
+      }
+
+      if (nextQuickCount < quickSessions.length) {
+        const removable = quickSessions.slice(nextQuickCount).map((session) => session.id);
+        await db.sessions.bulkDelete(removable);
+      }
+    });
+
+    await loadData();
+    setStatus(nextQuickCount > quickSessions.length ? "Entrenamiento rápido guardado" : "Entrenamiento rápido actualizado");
   };
 
   if (!isReady) {
@@ -205,6 +255,7 @@ export default function App() {
             sessions={data.sessions}
             setEntries={data.setEntries}
             onSave={saveWorkout}
+            onQuickTraining={toggleQuickTraining}
           />
         ) : null}
         {view === "progress" && selectedExercise ? (
@@ -249,6 +300,7 @@ function TrainView({
   sessions,
   setEntries,
   onSave,
+  onQuickTraining,
 }: {
   template: WorkoutTemplate;
   workoutKind: WorkoutKind;
@@ -262,11 +314,13 @@ function TrainView({
   sessions: WorkoutSession[];
   setEntries: SetEntry[];
   onSave: (template: WorkoutTemplate, date: string, painLevel: number | undefined, draft: WorkoutDraft, notes: string) => Promise<void>;
+  onQuickTraining: (date: string) => Promise<void>;
 }) {
   const [date, setDate] = useState(todayIso);
   const [painLevel, setPainLevel] = useState("0");
   const [notes, setNotes] = useState("");
   const [draft, setDraft] = useState<WorkoutDraft>({});
+  const [completedExerciseKeys, setCompletedExerciseKeys] = useState<Set<string>>(new Set());
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
@@ -291,6 +345,10 @@ function TrainView({
     }
     setDraft(nextDraft);
   }, [exerciseById, sessions, setEntries, template]);
+
+  useEffect(() => {
+    setCompletedExerciseKeys(new Set());
+  }, [date, template.id]);
 
   const updateSet = (exerciseId: string, setNumber: number, patch: Partial<DraftSet>) => {
     setDraft((current) => ({
@@ -321,8 +379,27 @@ function TrainView({
   const handleSave = async () => {
     setIsSaving(true);
     await onSave(template, date, Number(painLevel), draft, notes);
+    setCompletedExerciseKeys(new Set(template.exercises.map(exerciseProgressKey)));
     setIsSaving(false);
   };
+
+  const toggleExerciseComplete = (item: WorkoutTemplateExercise) => {
+    const key = exerciseProgressKey(item);
+    setCompletedExerciseKeys((current) => {
+      const next = new Set(current);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  };
+
+  const totalExercises = template.exercises.length;
+  const completedExercises = completedExerciseKeys.size;
+  const remainingExercises = Math.max(0, totalExercises - completedExercises);
+  const progressPercent = totalExercises ? Math.round((completedExercises / totalExercises) * 100) : 0;
 
   return (
     <section className="flow">
@@ -370,6 +447,13 @@ function TrainView({
         ) : null}
       </div>
 
+      <TrainingCalendar
+        sessions={sessions}
+        selectedDate={date}
+        onDateChange={setDate}
+        onQuickTraining={onQuickTraining}
+      />
+
       {Number(painLevel) > 3 ? <div className="pain-warning">Dolor mayor a 3 registrado</div> : null}
 
       <div className="routine-title">
@@ -377,13 +461,24 @@ function TrainView({
         <h2>{template.name}</h2>
       </div>
 
+      <div className="day-progress" data-testid="day-progress">
+        <div>
+          <span>{completedExercises} de {totalExercises}</span>
+          <strong>{remainingExercises ? `${remainingExercises} quedan` : "Completo"}</strong>
+        </div>
+        <div className="progress-track" aria-hidden="true">
+          <span style={{ width: `${progressPercent}%` }} />
+        </div>
+      </div>
+
       <div className="exercise-list">
         {template.exercises.map((item) => {
           const exercise = exerciseById.get(item.exerciseId);
           if (!exercise) return null;
           const sets = draft[exercise.id] ?? [];
+          const isComplete = completedExerciseKeys.has(exerciseProgressKey(item));
           return (
-            <article className="exercise-row" key={`${template.id}-${exercise.id}`}>
+            <article className={mergeClass("exercise-row", isComplete && "exercise-row-complete")} key={`${template.id}-${item.order}-${exercise.id}`}>
               <div className="exercise-summary">
                 <div>
                   <span>{item.block}</span>
@@ -394,6 +489,16 @@ function TrainView({
                   </p>
                 </div>
                 <div className="exercise-actions">
+                  <button
+                    type="button"
+                    className={mergeClass("complete-button", isComplete && "complete-button-active")}
+                    onClick={() => toggleExerciseComplete(item)}
+                    title={isComplete ? "Marcar pendiente" : "Marcar hecho"}
+                    aria-label={`${exercise.name} hecho`}
+                    aria-pressed={isComplete}
+                  >
+                    <Check size={17} />
+                  </button>
                   {exercise.videoUrl ? (
                     <a href={exercise.videoUrl} target="_blank" rel="noreferrer" title="Video">
                       <Play size={17} />
@@ -442,6 +547,53 @@ function TrainView({
         </button>
       </div>
     </section>
+  );
+}
+
+function TrainingCalendar({
+  sessions,
+  selectedDate,
+  onDateChange,
+  onQuickTraining,
+}: {
+  sessions: WorkoutSession[];
+  selectedDate: string;
+  onDateChange: (date: string) => void;
+  onQuickTraining: (date: string) => Promise<void>;
+}) {
+  const days = useMemo(() => buildTrainingDays(sessions, selectedDate), [selectedDate, sessions]);
+  const selectedCount = days.find((day) => day.date === selectedDate)?.count ?? 0;
+
+  const handleQuickTraining = async (date: string) => {
+    onDateChange(date);
+    await onQuickTraining(date);
+  };
+
+  return (
+    <article className="calendar-panel" data-testid="training-calendar">
+      <div className="calendar-head">
+        <div>
+          <span>Constancia</span>
+          <h2>Entrenos</h2>
+        </div>
+        <strong>{selectedCount}/2</strong>
+      </div>
+      <div className="calendar-grid" aria-label="Calendario de entrenamientos">
+        {days.map((day) => (
+          <button
+            key={day.date}
+            type="button"
+            className={mergeClass("calendar-square", day.date === selectedDate && "calendar-square-selected")}
+            data-count={day.count}
+            onClick={() => handleQuickTraining(day.date)}
+            title={`${day.date}: ${day.count} entrenamientos`}
+            aria-label={`${day.date}: ${day.count} entrenamientos`}
+          >
+            <span>{day.dayLabel}</span>
+          </button>
+        ))}
+      </div>
+    </article>
   );
 }
 
