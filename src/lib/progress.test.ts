@@ -51,12 +51,13 @@ describe("progress helpers", () => {
     const windows = buildTrainingWindows(sessions, "2026-06-17", 2);
 
     expect(windows).toHaveLength(2);
-    expect(windows[0]).toMatchObject({ id: "window-0", label: "Últimos 30" });
+    expect(windows[0]).toMatchObject({ id: "window-30", label: "30-59 días atrás" });
     expect(windows[0].days).toHaveLength(30);
-    expect(windows[0].days[0].date).toBe("2026-05-19");
-    expect(windows[0].days[29].date).toBe("2026-06-17");
-    expect(windows[1].label).toBe("59-30 días atrás");
-    expect(windows[1].days[29].date).toBe("2026-05-18");
+    expect(windows[0].days[0].date).toBe("2026-04-19");
+    expect(windows[0].days[29].date).toBe("2026-05-18");
+    expect(windows[1]).toMatchObject({ id: "window-0", label: "Últimos 30" });
+    expect(windows[1].days[0].date).toBe("2026-05-19");
+    expect(windows[1].days[29].date).toBe("2026-06-17");
   });
 
   it("cycles quick session counts without deleting planned workouts", () => {

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Check,
   ChevronDown,
@@ -563,6 +563,20 @@ function TrainingCalendar({
 }) {
   const windows = useMemo(() => buildTrainingWindows(sessions, selectedDate), [selectedDate, sessions]);
   const selectedCount = windows.flatMap((window) => window.days).find((day) => day.date === selectedDate)?.count ?? 0;
+  const scrollerRef = useRef<HTMLDivElement>(null);
+  const didPositionCalendar = useRef(false);
+
+  useEffect(() => {
+    const scroller = scrollerRef.current;
+    if (!scroller || didPositionCalendar.current) return;
+
+    const frame = window.requestAnimationFrame(() => {
+      scroller.scrollLeft = scroller.scrollWidth - scroller.clientWidth;
+      didPositionCalendar.current = true;
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [windows.length]);
 
   const handleQuickTraining = async (date: string) => {
     onDateChange(date);
@@ -578,9 +592,13 @@ function TrainingCalendar({
         </div>
         <strong>{selectedCount}/2</strong>
       </div>
-      <div className="calendar-scroller" aria-label="Calendario de entrenamientos" data-testid="training-calendar-scroller">
+      <div ref={scrollerRef} className="calendar-scroller" aria-label="Calendario de entrenamientos" data-testid="training-calendar-scroller">
         {windows.map((window, index) => (
-          <section className="calendar-window" key={window.id} aria-label={index === 0 ? "Periodo actual" : `Periodo anterior ${index}`}>
+          <section
+            className="calendar-window"
+            key={window.id}
+            aria-label={index === windows.length - 1 ? "Periodo actual" : `Periodo anterior ${windows.length - 1 - index}`}
+          >
             <div className="calendar-window-label">{window.label}</div>
             <div className="calendar-grid">
               {window.days.map((day) => (
@@ -651,7 +669,7 @@ function ProgressView({
           <div className="chart-box">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={points} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
-                <CartesianGrid stroke="#e5e7eb" vertical={false} />
+                <CartesianGrid stroke="#2f3a34" vertical={false} />
                 <XAxis dataKey="date" tick={{ fontSize: 11 }} minTickGap={16} />
                 <YAxis tick={{ fontSize: 11 }} width={36} domain={["dataMin - 2", "dataMax + 2"]} />
                 <Tooltip
@@ -667,7 +685,7 @@ function ProgressView({
                     );
                   }}
                 />
-                <Line dataKey="bestWeight" type="monotone" stroke="#111827" strokeWidth={2.5} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                <Line dataKey="bestWeight" type="monotone" stroke="#3ee58f" strokeWidth={2.5} dot={{ r: 4 }} activeDot={{ r: 6 }} />
               </LineChart>
             </ResponsiveContainer>
           </div>

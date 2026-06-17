@@ -47,13 +47,12 @@ export function buildTrainingDays(sessions: WorkoutSession[], anchorDate: string
 
 export function buildTrainingWindows(sessions: WorkoutSession[], anchorDate: string, windowCount = 6, daysPerWindow = 30): TrainingWindow[] {
   return Array.from({ length: windowCount }, (_, index) => {
-    const offsetDays = index * daysPerWindow;
-    const from = offsetDays + daysPerWindow - 1;
-    const to = offsetDays;
-    const label = index === 0 ? "Últimos 30" : `${from}-${to} días atrás`;
+    const windowIndexFromCurrent = windowCount - 1 - index;
+    const offsetDays = windowIndexFromCurrent * daysPerWindow;
+    const label = offsetDays === 0 ? "Últimos 30" : `${offsetDays}-${offsetDays + daysPerWindow - 1} días atrás`;
 
     return {
-      id: `window-${index}`,
+      id: `window-${offsetDays}`,
       label,
       days: buildTrainingDays(sessions, anchorDate, daysPerWindow, offsetDays),
     };

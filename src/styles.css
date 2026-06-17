@@ -1,19 +1,20 @@
 :root {
-  --bg: #eef2f3;
-  --panel: #ffffff;
-  --panel-soft: #f8fafc;
-  --surface: #e5eaee;
-  --line: #cfd8df;
-  --line-strong: #aebbc5;
-  --ink: #111827;
-  --muted: #64707d;
-  --muted-strong: #475569;
-  --green: #1f7a4d;
-  --green-dark: #14532d;
-  --green-soft: #dff6e7;
-  --blue: #1d4ed8;
-  --amber-soft: #fff3d7;
-  --danger: #9f2f16;
+  --bg: #0d1110;
+  --panel: #171c19;
+  --panel-soft: #202720;
+  --surface: #293129;
+  --line: #334039;
+  --line-strong: #56675d;
+  --ink: #f5f7f2;
+  --muted: #9fa99f;
+  --muted-strong: #c8d4c9;
+  --green: #3ee58f;
+  --green-dark: #18a762;
+  --green-soft: rgba(62, 229, 143, 0.15);
+  --blue: #7bb4ff;
+  --amber-soft: rgba(255, 186, 83, 0.16);
+  --danger: #ff8b6b;
+  --shadow: 0 18px 46px rgba(0, 0, 0, 0.28);
   color: var(--ink);
   background: var(--bg);
   font-family:
@@ -32,6 +33,7 @@ body {
   min-width: 320px;
   min-height: 100vh;
   background: var(--bg);
+  color-scheme: dark;
 }
 
 button,
@@ -51,7 +53,7 @@ a {
 
 .app {
   min-height: 100vh;
-  padding-bottom: 92px;
+  padding-bottom: 108px;
 }
 
 .loading {
@@ -68,7 +70,7 @@ a {
   justify-content: space-between;
   margin: 0 auto;
   max-width: 920px;
-  padding: 22px 18px 12px;
+  padding: 24px 18px 14px;
 }
 
 .app-kicker,
@@ -95,9 +97,10 @@ a {
 }
 
 .sync-pill {
-  background: var(--green-dark);
+  background: var(--green-soft);
+  border: 1px solid rgba(62, 229, 143, 0.32);
   border-radius: 999px;
-  color: #fff;
+  color: var(--green);
   font-size: 0.74rem;
   font-weight: 750;
   padding: 7px 11px;
@@ -106,7 +109,7 @@ a {
 .screen {
   margin: 0 auto;
   max-width: 920px;
-  padding: 0 16px 24px;
+  padding: 0 16px 136px;
 }
 
 .flow {
@@ -128,11 +131,13 @@ a {
 
 .status {
   background: var(--green-soft);
-  color: var(--green-dark);
+  border: 1px solid rgba(62, 229, 143, 0.28);
+  color: var(--green);
 }
 
 .pain-warning {
-  background: #fff1ea;
+  background: rgba(255, 139, 107, 0.14);
+  border-color: rgba(255, 139, 107, 0.28);
   color: var(--danger);
   margin-bottom: 0;
   max-width: none;
@@ -146,17 +151,18 @@ a {
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 8px;
-  box-shadow: 0 1px 2px rgba(17, 24, 39, 0.05);
+  box-shadow: var(--shadow);
 }
 
 .train-controls {
   display: grid;
   gap: 10px;
-  padding: 12px;
+  padding: 10px;
 }
 
 .segmented {
-  background: var(--surface);
+  background: #0f1512;
+  border: 1px solid var(--line);
   border-radius: 8px;
   display: grid;
   gap: 4px;
@@ -174,13 +180,13 @@ a {
   border-radius: 7px;
   color: var(--muted-strong);
   font-weight: 750;
-  min-height: 40px;
+  min-height: 42px;
 }
 
 .segmented .selected {
-  background: var(--panel);
-  color: var(--ink);
-  box-shadow: 0 1px 2px rgba(17, 24, 39, 0.08);
+  background: var(--green);
+  color: #05130c;
+  box-shadow: 0 8px 20px rgba(62, 229, 143, 0.16);
 }
 
 .control-row {
@@ -201,13 +207,13 @@ input,
 select,
 textarea {
   appearance: none;
-  background: var(--panel-soft);
+  background: #0f1512;
   border: 1px solid var(--line);
   border-radius: 8px;
   color: var(--ink);
-  min-height: 42px;
+  min-height: 46px;
   outline: 0;
-  padding: 10px 11px;
+  padding: 11px 12px;
   width: 100%;
 }
 
@@ -218,8 +224,8 @@ textarea {
 input:focus,
 select:focus,
 textarea:focus {
-  border-color: var(--blue);
-  box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.13);
+  border-color: var(--green);
+  box-shadow: 0 0 0 3px rgba(62, 229, 143, 0.14);
 }
 
 .routine-title {
@@ -229,7 +235,8 @@ textarea:focus {
 .calendar-panel {
   display: grid;
   gap: 12px;
-  padding: 13px;
+  overflow: hidden;
+  padding: 14px;
 }
 
 .calendar-head,
@@ -257,19 +264,19 @@ textarea:focus {
 }
 
 .calendar-head strong {
-  background: var(--green-soft);
+  background: var(--green);
   border-radius: 999px;
-  color: var(--green-dark);
+  color: #06140c;
   font-size: 0.82rem;
-  padding: 7px 10px;
+  padding: 8px 11px;
 }
 
 .calendar-scroller {
   display: flex;
-  gap: 10px;
+  gap: 12px;
   overflow-x: auto;
   overscroll-behavior-x: contain;
-  padding-bottom: 2px;
+  padding-bottom: 4px;
   scroll-snap-type: x mandatory;
   scrollbar-color: var(--line-strong) transparent;
 }
@@ -282,7 +289,7 @@ textarea:focus {
 }
 
 .calendar-window-label {
-  color: var(--muted);
+  color: var(--muted-strong);
   font-size: 0.72rem;
   font-weight: 800;
   letter-spacing: 0.02em;
@@ -297,8 +304,8 @@ textarea:focus {
 .calendar-square {
   align-items: center;
   aspect-ratio: 1;
-  background: #e7edf2;
-  border: 1px solid transparent;
+  background: #111815;
+  border: 1px solid var(--line);
   border-radius: 6px;
   color: var(--muted-strong);
   cursor: pointer;
@@ -308,18 +315,20 @@ textarea:focus {
 }
 
 .calendar-square[data-count="1"] {
-  background: #bfe7ca;
-  color: var(--green-dark);
+  background: #214d35;
+  border-color: rgba(62, 229, 143, 0.34);
+  color: #caffe2;
 }
 
 .calendar-square[data-count="2"] {
   background: var(--green);
-  color: #fff;
+  border-color: var(--green);
+  color: #05130c;
 }
 
 .calendar-square-selected {
-  border-color: var(--ink);
-  box-shadow: inset 0 0 0 1px var(--ink);
+  border-color: var(--blue);
+  box-shadow: inset 0 0 0 1px var(--blue), 0 0 0 3px rgba(123, 180, 255, 0.12);
 }
 
 .calendar-square span {
@@ -341,14 +350,14 @@ textarea:focus {
 }
 
 .progress-track {
-  background: var(--surface);
+  background: #0f1512;
   border-radius: 999px;
   height: 9px;
   overflow: hidden;
 }
 
 .progress-track span {
-  background: var(--blue);
+  background: var(--green);
   border-radius: inherit;
   display: block;
   height: 100%;
@@ -368,13 +377,13 @@ textarea:focus {
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 8px;
-  padding: 13px;
-  box-shadow: 0 1px 2px rgba(17, 24, 39, 0.04);
+  box-shadow: var(--shadow);
+  padding: 14px;
 }
 
 .exercise-row-complete {
-  border-color: #92d5a6;
-  box-shadow: 0 0 0 1px rgba(31, 122, 77, 0.1);
+  border-color: rgba(62, 229, 143, 0.58);
+  box-shadow: 0 0 0 1px rgba(62, 229, 143, 0.18), var(--shadow);
 }
 
 .exercise-summary,
@@ -387,7 +396,7 @@ textarea:focus {
 
 .exercise-summary h3,
 .library-row h3 {
-  font-size: 1rem;
+  font-size: 1.04rem;
   line-height: 1.2;
   margin: 3px 0 4px;
 }
@@ -411,8 +420,9 @@ textarea:focus {
 .exercise-actions a,
 .library-row a {
   align-items: center;
-  background: var(--surface);
-  border-radius: 8px;
+  background: #0f1512;
+  border: 1px solid var(--line);
+  border-radius: 999px;
   color: var(--ink);
   display: inline-flex;
   height: 38px;
@@ -423,7 +433,8 @@ textarea:focus {
 
 .exercise-actions .complete-button-active {
   background: var(--green);
-  color: #fff;
+  border-color: var(--green);
+  color: #06140c;
 }
 
 .sets {
@@ -441,11 +452,14 @@ textarea:focus {
 
 .set-line span {
   align-items: center;
-  color: var(--muted);
+  background: var(--surface);
+  border-radius: 999px;
+  color: var(--muted-strong);
   display: flex;
   font-size: 0.82rem;
   font-weight: 800;
   justify-content: center;
+  min-height: 28px;
 }
 
 .set-line input {
@@ -455,6 +469,9 @@ textarea:focus {
 .save-strip {
   display: grid;
   gap: 10px;
+  position: sticky;
+  bottom: calc(76px + env(safe-area-inset-bottom));
+  z-index: 12;
   padding: 12px;
 }
 
@@ -462,15 +479,15 @@ textarea:focus {
 .settings-actions button,
 .settings-actions label {
   align-items: center;
-  background: var(--ink);
+  background: var(--green);
   border-radius: 8px;
-  color: #fff;
+  color: #06140c;
   cursor: pointer;
   display: inline-flex;
   font-weight: 800;
   gap: 8px;
   justify-content: center;
-  min-height: 44px;
+  min-height: 50px;
   padding: 10px 14px;
 }
 
@@ -515,16 +532,16 @@ textarea:focus {
 }
 
 .chart-head strong {
-  background: var(--ink);
+  background: var(--green);
   border-radius: 999px;
-  color: #fff;
+  color: #06140c;
   min-width: 64px;
   padding: 9px 12px;
   text-align: center;
 }
 
 .chart-box {
-  height: 300px;
+  height: 200px;
   margin-top: 14px;
 }
 
@@ -539,7 +556,7 @@ textarea:focus {
 
 .empty {
   align-items: center;
-  background: var(--panel-soft);
+  background: #0f1512;
   border-radius: 8px;
   color: var(--muted);
   display: flex;
@@ -598,16 +615,18 @@ textarea:focus {
 }
 
 .tabbar {
-  background: rgba(255, 255, 255, 0.96);
-  border-top: 1px solid var(--line);
-  bottom: 0;
+  background: rgba(14, 19, 16, 0.96);
+  backdrop-filter: blur(18px);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  bottom: max(8px, env(safe-area-inset-bottom));
   display: grid;
   gap: 2px;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  left: 0;
-  padding: 7px max(7px, env(safe-area-inset-right)) calc(7px + env(safe-area-inset-bottom)) max(7px, env(safe-area-inset-left));
+  left: 12px;
+  padding: 5px;
   position: fixed;
-  right: 0;
+  right: 12px;
   z-index: 20;
 }
 
@@ -621,12 +640,12 @@ textarea:focus {
   font-weight: 750;
   gap: 3px;
   justify-items: center;
-  min-height: 56px;
+  min-height: 50px;
 }
 
 .tab-active {
-  background: var(--surface);
-  color: var(--ink);
+  background: var(--green-soft);
+  color: var(--green);
 }
 
 @media (min-width: 760px) {
@@ -640,6 +659,7 @@ textarea:focus {
 
   .screen {
     padding-left: 20px;
+    padding-bottom: 24px;
     padding-right: 20px;
   }
 
@@ -650,20 +670,31 @@ textarea:focus {
   .save-strip {
     align-items: end;
     grid-template-columns: minmax(0, 1fr) 160px;
+    position: static;
+  }
+
+  .chart-box {
+    height: 300px;
   }
 
   .settings-actions {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .calendar-window {
+    flex-basis: min(360px, 42vw);
+  }
+
   .tabbar {
     border: 1px solid var(--line);
     border-radius: 8px;
     bottom: auto;
+    left: auto;
     margin: 0 auto 24px;
     max-width: 920px;
     padding: 6px;
     position: sticky;
+    right: auto;
   }
 }
 

@@ -6,7 +6,29 @@ test("records fixed leg plan and monthly upper plan, then charts progress", asyn
   await expect(page.getByRole("heading", { name: "Entrenar" })).toBeVisible();
   await expect(page.getByTestId("day-progress")).toContainText("0 de 6");
   await expect(page.getByTestId("training-calendar-scroller")).toContainText("Últimos 30");
-  await expect(page.getByTestId("training-calendar-scroller")).toContainText("59-30 días atrás");
+  await expect(page.getByTestId("training-calendar-scroller")).toContainText("30-59 días atrás");
+  await expect(page.getByText("Últimos 30")).toBeInViewport();
+  const initialCalendarPosition = await page.getByTestId("training-calendar-scroller").evaluate((element) => {
+    const windows = Array.from(element.querySelectorAll<HTMLElement>(".calendar-window"));
+    const currentWindow = windows.find((window) => window.textContent?.includes("Últimos 30"));
+    const previousWindow = windows.find((window) => window.textContent?.includes("30-59 días atrás"));
+
+    return {
+      left: element.scrollLeft,
+      max: element.scrollWidth - element.clientWidth,
+      currentLeft: currentWindow?.offsetLeft ?? 0,
+      previousLeft: previousWindow?.offsetLeft ?? 0,
+    };
+  });
+  expect(initialCalendarPosition.left).toBeGreaterThanOrEqual(initialCalendarPosition.max - 4);
+  expect(initialCalendarPosition.previousLeft).toBeLessThan(initialCalendarPosition.currentLeft);
+  await page.getByTestId("training-calendar-scroller").evaluate((element) => {
+    const previousWindow = Array.from(element.querySelectorAll<HTMLElement>(".calendar-window")).find((window) =>
+      window.textContent?.includes("30-59 días atrás"),
+    );
+    if (previousWindow) element.scrollLeft = previousWindow.offsetLeft;
+  });
+  await expect(page.getByText("30-59 días atrás")).toBeInViewport();
 
   await page.getByRole("button", { name: "Sentadilla con barra hecho" }).click();
   await expect(page.getByTestId("day-progress")).toContainText("1 de 6");
