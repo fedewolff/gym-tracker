@@ -5,6 +5,8 @@ test("records fixed leg plan and monthly upper plan, then charts progress", asyn
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Entrenar" })).toBeVisible();
   await expect(page.getByTestId("day-progress")).toContainText("0 de 6");
+  await expect(page.getByTestId("training-calendar-scroller")).toContainText("Últimos 30");
+  await expect(page.getByTestId("training-calendar-scroller")).toContainText("59-30 días atrás");
 
   await page.getByRole("button", { name: "Sentadilla con barra hecho" }).click();
   await expect(page.getByTestId("day-progress")).toContainText("1 de 6");

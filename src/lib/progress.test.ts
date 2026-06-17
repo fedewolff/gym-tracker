@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { SetEntry, WorkoutSession } from "../types";
 import { calculateProgressPoints, getLatestSetsByNumber } from "./progress";
-import { buildTrainingDays, getNextQuickSessionCount } from "./trainingCalendar";
+import { buildTrainingDays, buildTrainingWindows, getNextQuickSessionCount } from "./trainingCalendar";
 
 const sessions: WorkoutSession[] = [
   { id: "s1", templateId: "t1", date: "2026-06-01", createdAt: "2026-06-01T12:00:00.000Z" },
@@ -45,6 +45,18 @@ describe("progress helpers", () => {
 
     expect(days.find((day) => day.date === "2026-06-01")?.count).toBe(1);
     expect(days.find((day) => day.date === "2026-06-08")?.count).toBe(2);
+  });
+
+  it("builds scrollable 30-day training windows", () => {
+    const windows = buildTrainingWindows(sessions, "2026-06-17", 2);
+
+    expect(windows).toHaveLength(2);
+    expect(windows[0]).toMatchObject({ id: "window-0", label: "Últimos 30" });
+    expect(windows[0].days).toHaveLength(30);
+    expect(windows[0].days[0].date).toBe("2026-05-19");
+    expect(windows[0].days[29].date).toBe("2026-06-17");
+    expect(windows[1].label).toBe("59-30 días atrás");
+    expect(windows[1].days[29].date).toBe("2026-05-18");
   });
 
   it("cycles quick session counts without deleting planned workouts", () => {

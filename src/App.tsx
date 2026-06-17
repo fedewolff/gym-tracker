@@ -27,7 +27,7 @@ import { db, ensureSeeded, exportBackup, importBackup } from "./lib/db";
 import { uid } from "./lib/ids";
 import { calculateProgressPoints, getLatestAnySet, getLatestSetsByNumber } from "./lib/progress";
 import {
-  buildTrainingDays,
+  buildTrainingWindows,
   getNextQuickSessionCount,
   isQuickSession,
   QUICK_SESSION_TEMPLATE_ID,
@@ -561,8 +561,8 @@ function TrainingCalendar({
   onDateChange: (date: string) => void;
   onQuickTraining: (date: string) => Promise<void>;
 }) {
-  const days = useMemo(() => buildTrainingDays(sessions, selectedDate), [selectedDate, sessions]);
-  const selectedCount = days.find((day) => day.date === selectedDate)?.count ?? 0;
+  const windows = useMemo(() => buildTrainingWindows(sessions, selectedDate), [selectedDate, sessions]);
+  const selectedCount = windows.flatMap((window) => window.days).find((day) => day.date === selectedDate)?.count ?? 0;
 
   const handleQuickTraining = async (date: string) => {
     onDateChange(date);
@@ -578,19 +578,26 @@ function TrainingCalendar({
         </div>
         <strong>{selectedCount}/2</strong>
       </div>
-      <div className="calendar-grid" aria-label="Calendario de entrenamientos">
-        {days.map((day) => (
-          <button
-            key={day.date}
-            type="button"
-            className={mergeClass("calendar-square", day.date === selectedDate && "calendar-square-selected")}
-            data-count={day.count}
-            onClick={() => handleQuickTraining(day.date)}
-            title={`${day.date}: ${day.count} entrenamientos`}
-            aria-label={`${day.date}: ${day.count} entrenamientos`}
-          >
-            <span>{day.dayLabel}</span>
-          </button>
+      <div className="calendar-scroller" aria-label="Calendario de entrenamientos" data-testid="training-calendar-scroller">
+        {windows.map((window, index) => (
+          <section className="calendar-window" key={window.id} aria-label={index === 0 ? "Periodo actual" : `Periodo anterior ${index}`}>
+            <div className="calendar-window-label">{window.label}</div>
+            <div className="calendar-grid">
+              {window.days.map((day) => (
+                <button
+                  key={day.date}
+                  type="button"
+                  className={mergeClass("calendar-square", day.date === selectedDate && "calendar-square-selected")}
+                  data-count={day.count}
+                  onClick={() => handleQuickTraining(day.date)}
+                  title={`${day.date}: ${day.count} entrenamientos`}
+                  aria-label={`${day.date}: ${day.count} entrenamientos`}
+                >
+                  <span>{day.dayLabel}</span>
+                </button>
+              ))}
+            </div>
+          </section>
         ))}
       </div>
     </article>

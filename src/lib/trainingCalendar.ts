@@ -9,6 +9,12 @@ export interface TrainingDay {
   count: number;
 }
 
+export interface TrainingWindow {
+  id: string;
+  label: string;
+  days: TrainingDay[];
+}
+
 export function isQuickSession(session: WorkoutSession): boolean {
   return session.kind === "quick" || session.templateId === QUICK_SESSION_TEMPLATE_ID;
 }
@@ -21,9 +27,10 @@ export function countTrainingsByDate(sessions: WorkoutSession[]): Map<string, nu
   return counts;
 }
 
-export function buildTrainingDays(sessions: WorkoutSession[], anchorDate: string, dayCount = 28): TrainingDay[] {
+export function buildTrainingDays(sessions: WorkoutSession[], anchorDate: string, dayCount = 30, offsetDays = 0): TrainingDay[] {
   const counts = countTrainingsByDate(sessions);
   const anchor = new Date(`${anchorDate}T12:00:00`);
+  anchor.setDate(anchor.getDate() - offsetDays);
 
   return Array.from({ length: dayCount }, (_, index) => {
     const date = new Date(anchor);
@@ -34,6 +41,21 @@ export function buildTrainingDays(sessions: WorkoutSession[], anchorDate: string
       date: iso,
       dayLabel: String(date.getDate()),
       count: counts.get(iso) ?? 0,
+    };
+  });
+}
+
+export function buildTrainingWindows(sessions: WorkoutSession[], anchorDate: string, windowCount = 6, daysPerWindow = 30): TrainingWindow[] {
+  return Array.from({ length: windowCount }, (_, index) => {
+    const offsetDays = index * daysPerWindow;
+    const from = offsetDays + daysPerWindow - 1;
+    const to = offsetDays;
+    const label = index === 0 ? "Últimos 30" : `${from}-${to} días atrás`;
+
+    return {
+      id: `window-${index}`,
+      label,
+      days: buildTrainingDays(sessions, anchorDate, daysPerWindow, offsetDays),
     };
   });
 }

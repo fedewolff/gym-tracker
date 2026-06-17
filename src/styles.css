@@ -1,6 +1,21 @@
 :root {
-  color: #171717;
-  background: #f6f5f2;
+  --bg: #eef2f3;
+  --panel: #ffffff;
+  --panel-soft: #f8fafc;
+  --surface: #e5eaee;
+  --line: #cfd8df;
+  --line-strong: #aebbc5;
+  --ink: #111827;
+  --muted: #64707d;
+  --muted-strong: #475569;
+  --green: #1f7a4d;
+  --green-dark: #14532d;
+  --green-soft: #dff6e7;
+  --blue: #1d4ed8;
+  --amber-soft: #fff3d7;
+  --danger: #9f2f16;
+  color: var(--ink);
+  background: var(--bg);
   font-family:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-synthesis: none;
@@ -16,7 +31,7 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
-  background: #f6f5f2;
+  background: var(--bg);
 }
 
 button,
@@ -61,7 +76,7 @@ a {
 .chart-head span,
 .library-row span,
 .exercise-summary span {
-  color: #75716b;
+  color: var(--muted-strong);
   display: block;
   font-size: 0.72rem;
   font-weight: 750;
@@ -80,7 +95,7 @@ a {
 }
 
 .sync-pill {
-  background: #171717;
+  background: var(--green-dark);
   border-radius: 999px;
   color: #fff;
   font-size: 0.74rem;
@@ -112,13 +127,13 @@ a {
 }
 
 .status {
-  background: #e7f6ec;
-  color: #146c2e;
+  background: var(--green-soft);
+  color: var(--green-dark);
 }
 
 .pain-warning {
-  background: #fff0eb;
-  color: #9f2f16;
+  background: #fff1ea;
+  color: var(--danger);
   margin-bottom: 0;
   max-width: none;
 }
@@ -128,9 +143,10 @@ a {
 .calendar-panel,
 .settings-card,
 .save-strip {
-  background: #fff;
-  border: 1px solid #e3e0da;
+  background: var(--panel);
+  border: 1px solid var(--line);
   border-radius: 8px;
+  box-shadow: 0 1px 2px rgba(17, 24, 39, 0.05);
 }
 
 .train-controls {
@@ -140,7 +156,7 @@ a {
 }
 
 .segmented {
-  background: #efede8;
+  background: var(--surface);
   border-radius: 8px;
   display: grid;
   gap: 4px;
@@ -156,14 +172,15 @@ a {
 .segmented button {
   background: transparent;
   border-radius: 7px;
-  color: #68635d;
+  color: var(--muted-strong);
   font-weight: 750;
   min-height: 40px;
 }
 
 .segmented .selected {
-  background: #fff;
-  color: #171717;
+  background: var(--panel);
+  color: var(--ink);
+  box-shadow: 0 1px 2px rgba(17, 24, 39, 0.08);
 }
 
 .control-row {
@@ -173,7 +190,7 @@ a {
 }
 
 label {
-  color: #68635d;
+  color: var(--muted-strong);
   display: grid;
   font-size: 0.76rem;
   font-weight: 750;
@@ -184,10 +201,10 @@ input,
 select,
 textarea {
   appearance: none;
-  background: #fbfaf8;
-  border: 1px solid #dedad2;
+  background: var(--panel-soft);
+  border: 1px solid var(--line);
   border-radius: 8px;
-  color: #171717;
+  color: var(--ink);
   min-height: 42px;
   outline: 0;
   padding: 10px 11px;
@@ -201,8 +218,8 @@ textarea {
 input:focus,
 select:focus,
 textarea:focus {
-  border-color: #171717;
-  box-shadow: 0 0 0 3px rgba(23, 23, 23, 0.08);
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.13);
 }
 
 .routine-title {
@@ -225,7 +242,7 @@ textarea:focus {
 
 .calendar-head span,
 .day-progress span {
-  color: #75716b;
+  color: var(--muted-strong);
   display: block;
   font-size: 0.72rem;
   font-weight: 750;
@@ -240,26 +257,50 @@ textarea:focus {
 }
 
 .calendar-head strong {
-  background: #e7f6ec;
+  background: var(--green-soft);
   border-radius: 999px;
-  color: #146c2e;
+  color: var(--green-dark);
   font-size: 0.82rem;
   padding: 7px 10px;
+}
+
+.calendar-scroller {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  padding-bottom: 2px;
+  scroll-snap-type: x mandatory;
+  scrollbar-color: var(--line-strong) transparent;
+}
+
+.calendar-window {
+  display: grid;
+  flex: 0 0 100%;
+  gap: 8px;
+  scroll-snap-align: start;
+}
+
+.calendar-window-label {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
 }
 
 .calendar-grid {
   display: grid;
   gap: 6px;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
 }
 
 .calendar-square {
   align-items: center;
   aspect-ratio: 1;
-  background: #efede8;
+  background: #e7edf2;
   border: 1px solid transparent;
   border-radius: 6px;
-  color: #68635d;
+  color: var(--muted-strong);
   cursor: pointer;
   display: flex;
   justify-content: center;
@@ -267,17 +308,18 @@ textarea:focus {
 }
 
 .calendar-square[data-count="1"] {
-  background: #ccebd3;
-  color: #175a2d;
+  background: #bfe7ca;
+  color: var(--green-dark);
 }
 
 .calendar-square[data-count="2"] {
-  background: #23743b;
+  background: var(--green);
   color: #fff;
 }
 
 .calendar-square-selected {
-  border-color: #171717;
+  border-color: var(--ink);
+  box-shadow: inset 0 0 0 1px var(--ink);
 }
 
 .calendar-square span {
@@ -286,8 +328,8 @@ textarea:focus {
 }
 
 .day-progress {
-  background: #fff;
-  border: 1px solid #e3e0da;
+  background: var(--panel);
+  border: 1px solid var(--line);
   border-radius: 8px;
   display: grid;
   gap: 9px;
@@ -299,14 +341,14 @@ textarea:focus {
 }
 
 .progress-track {
-  background: #efede8;
+  background: var(--surface);
   border-radius: 999px;
   height: 9px;
   overflow: hidden;
 }
 
 .progress-track span {
-  background: #171717;
+  background: var(--blue);
   border-radius: inherit;
   display: block;
   height: 100%;
@@ -323,14 +365,16 @@ textarea:focus {
 
 .exercise-row,
 .library-row {
-  background: #fff;
-  border: 1px solid #e3e0da;
+  background: var(--panel);
+  border: 1px solid var(--line);
   border-radius: 8px;
   padding: 13px;
+  box-shadow: 0 1px 2px rgba(17, 24, 39, 0.04);
 }
 
 .exercise-row-complete {
-  border-color: #b9dfc2;
+  border-color: #92d5a6;
+  box-shadow: 0 0 0 1px rgba(31, 122, 77, 0.1);
 }
 
 .exercise-summary,
@@ -351,7 +395,7 @@ textarea:focus {
 .exercise-summary p,
 .library-row p,
 .settings-card p {
-  color: #68635d;
+  color: var(--muted);
   font-size: 0.86rem;
   line-height: 1.4;
   margin: 0;
@@ -367,9 +411,9 @@ textarea:focus {
 .exercise-actions a,
 .library-row a {
   align-items: center;
-  background: #f0eee9;
+  background: var(--surface);
   border-radius: 8px;
-  color: #171717;
+  color: var(--ink);
   display: inline-flex;
   height: 38px;
   justify-content: center;
@@ -378,7 +422,7 @@ textarea:focus {
 }
 
 .exercise-actions .complete-button-active {
-  background: #23743b;
+  background: var(--green);
   color: #fff;
 }
 
@@ -397,7 +441,7 @@ textarea:focus {
 
 .set-line span {
   align-items: center;
-  color: #68635d;
+  color: var(--muted);
   display: flex;
   font-size: 0.82rem;
   font-weight: 800;
@@ -418,7 +462,7 @@ textarea:focus {
 .settings-actions button,
 .settings-actions label {
   align-items: center;
-  background: #171717;
+  background: var(--ink);
   border-radius: 8px;
   color: #fff;
   cursor: pointer;
@@ -435,8 +479,8 @@ textarea:focus {
 }
 
 .select-field {
-  background: #fff;
-  border: 1px solid #e3e0da;
+  background: var(--panel);
+  border: 1px solid var(--line);
   border-radius: 8px;
   padding: 12px;
 }
@@ -471,7 +515,7 @@ textarea:focus {
 }
 
 .chart-head strong {
-  background: #171717;
+  background: var(--ink);
   border-radius: 999px;
   color: #fff;
   min-width: 64px;
@@ -485,8 +529,8 @@ textarea:focus {
 }
 
 .tooltip {
-  background: #fff;
-  border: 1px solid #dedad2;
+  background: var(--panel);
+  border: 1px solid var(--line);
   border-radius: 8px;
   display: grid;
   gap: 4px;
@@ -495,9 +539,9 @@ textarea:focus {
 
 .empty {
   align-items: center;
-  background: #fbfaf8;
+  background: var(--panel-soft);
   border-radius: 8px;
-  color: #68635d;
+  color: var(--muted);
   display: flex;
   font-weight: 750;
   height: 180px;
@@ -507,8 +551,8 @@ textarea:focus {
 
 .history div {
   align-items: center;
-  background: #fff;
-  border: 1px solid #e3e0da;
+  background: var(--panel);
+  border: 1px solid var(--line);
   border-radius: 8px;
   display: grid;
   gap: 8px;
@@ -518,13 +562,13 @@ textarea:focus {
 
 .history span,
 .history small {
-  color: #68635d;
+  color: var(--muted);
 }
 
 .search-field {
   align-items: center;
-  background: #fff;
-  border: 1px solid #e3e0da;
+  background: var(--panel);
+  border: 1px solid var(--line);
   border-radius: 8px;
   display: grid;
   gap: 8px;
@@ -554,8 +598,8 @@ textarea:focus {
 }
 
 .tabbar {
-  background: #fff;
-  border-top: 1px solid #e3e0da;
+  background: rgba(255, 255, 255, 0.96);
+  border-top: 1px solid var(--line);
   bottom: 0;
   display: grid;
   gap: 2px;
@@ -571,7 +615,7 @@ textarea:focus {
   align-items: center;
   background: transparent;
   border-radius: 8px;
-  color: #77716a;
+  color: var(--muted);
   display: grid;
   font-size: 0.69rem;
   font-weight: 750;
@@ -581,8 +625,8 @@ textarea:focus {
 }
 
 .tab-active {
-  background: #efede8;
-  color: #171717;
+  background: var(--surface);
+  color: var(--ink);
 }
 
 @media (min-width: 760px) {
@@ -613,7 +657,7 @@ textarea:focus {
   }
 
   .tabbar {
-    border: 1px solid #e3e0da;
+    border: 1px solid var(--line);
     border-radius: 8px;
     bottom: auto;
     margin: 0 auto 24px;
