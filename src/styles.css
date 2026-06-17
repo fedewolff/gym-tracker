@@ -692,10 +692,7 @@ textarea:focus {
 .heatmap-total-head {
   background: var(--panel);
   line-height: 1.05;
-  position: sticky;
-  right: 0;
   text-align: center;
-  z-index: 2;
 }
 
 .heatmap-cell,
@@ -709,8 +706,15 @@ textarea:focus {
   align-items: center;
   background: #101713;
   color: #06140c;
+  cursor: pointer;
   display: flex;
   justify-content: center;
+  padding: 0;
+}
+
+.heatmap-cell:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
 }
 
 .heatmap-level-1 {
@@ -737,9 +741,6 @@ textarea:focus {
   background: #0f1512;
   color: var(--ink);
   font-weight: 850;
-  position: sticky;
-  right: 0;
-  z-index: 2;
 }
 
 .tooltip {

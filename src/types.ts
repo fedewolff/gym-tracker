@@ -41,7 +41,7 @@ export interface WorkoutSession {
   id: string;
   templateId: string;
   date: string;
-  kind?: "workout" | "quick";
+  kind?: "workout" | "quick" | "manual-uncheck";
   trainingType?: TrainingType;
   painLevel?: number;
   notes?: string;

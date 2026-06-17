@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   Check,
   Download,
@@ -15,11 +15,12 @@ import { getAvailableMonths, getDefaultMonthId } from "./data/seed";
 import { db, ensureSeeded, exportBackup, importBackup } from "./lib/db";
 import { uid } from "./lib/ids";
 import { getLatestAnySet, getLatestSetsByNumber } from "./lib/progress";
-import { buildTrainingHeatmap, TRAINING_TYPE_LABELS } from "./lib/trainingBalance";
+import { buildTrainingHeatmap, TRAINING_TYPE_LABELS, resolveTrainingType } from "./lib/trainingBalance";
 import {
-  buildTrainingWindows,
-  MAX_DAILY_TRAINING_COUNT,
+  HEATMAP_UNCHECK_TEMPLATE_ID,
   QUICK_SESSION_TEMPLATE_ID,
+  isManualUncheckSession,
+  isQuickSession,
 } from "./lib/trainingCalendar";
 import { extractWeightNumber } from "./lib/weights";
 import type { BackupPayload, Exercise, SetEntry, TrainingType, WorkoutSession, WorkoutTemplate, WorkoutTemplateExercise } from "./types";
@@ -49,8 +50,6 @@ const TABS: Array<{ id: View; label: string; icon: typeof Dumbbell }> = [
   { id: "exercises", label: "Ejercicios", icon: Search },
   { id: "settings", label: "Ajustes", icon: Settings },
 ];
-
-const QUICK_TRAINING_TYPES: TrainingType[] = ["leg", "upper", "aerobic"];
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
@@ -163,25 +162,64 @@ export default function App() {
     setStatus("Entrenamiento guardado");
   };
 
-  const addQuickTraining = async (date: string, trainingType: TrainingType) => {
-    const daySessions = data.sessions.filter((session) => session.date === date);
+  const toggleHeatmapTraining = async (date: string, trainingType: TrainingType) => {
+    const matchingSessions = data.sessions.filter((session) => session.date === date && resolveTrainingType(session, data.templates) === trainingType);
+    const uncheckSessions = matchingSessions.filter(isManualUncheckSession);
+    const quickSessions = matchingSessions.filter((session) => isQuickSession(session) && !isManualUncheckSession(session));
+    const workoutSessions = matchingSessions.filter((session) => !isQuickSession(session) && !isManualUncheckSession(session));
+    const uncheckIds = uncheckSessions.map((session) => session.id);
+    const quickIds = quickSessions.map((session) => session.id);
+    let actionLabel = "marcado";
 
-    if (daySessions.length >= MAX_DAILY_TRAINING_COUNT) {
-      setStatus("Ese día ya tiene 2 entrenamientos");
-      return;
-    }
+    await db.transaction("rw", db.sessions, db.setEntries, async () => {
+      if (uncheckIds.length) {
+        await db.sessions.bulkDelete(uncheckIds);
+        if (!quickSessions.length && !workoutSessions.length) {
+          await db.sessions.put({
+            id: uid("session"),
+            templateId: QUICK_SESSION_TEMPLATE_ID,
+            date,
+            kind: "quick",
+            trainingType,
+            createdAt: new Date().toISOString(),
+          });
+        }
+        return;
+      }
 
-    await db.sessions.put({
-      id: uid("session"),
-      templateId: QUICK_SESSION_TEMPLATE_ID,
-      date,
-      kind: "quick",
-      trainingType,
-      createdAt: new Date().toISOString(),
+      if (quickIds.length) {
+        actionLabel = "desmarcado";
+        await db.sessions.bulkDelete(quickIds);
+        await db.setEntries.where("sessionId").anyOf(quickIds).delete();
+      }
+
+      if (workoutSessions.length) {
+        actionLabel = "desmarcado";
+        await db.sessions.put({
+          id: uid("session"),
+          templateId: HEATMAP_UNCHECK_TEMPLATE_ID,
+          date,
+          kind: "manual-uncheck",
+          trainingType,
+          createdAt: new Date().toISOString(),
+        });
+        return;
+      }
+
+      if (!quickIds.length) {
+        await db.sessions.put({
+          id: uid("session"),
+          templateId: QUICK_SESSION_TEMPLATE_ID,
+          date,
+          kind: "quick",
+          trainingType,
+          createdAt: new Date().toISOString(),
+        });
+      }
     });
 
     await loadData();
-    setStatus(`${TRAINING_TYPE_LABELS[trainingType]} guardado`);
+    setStatus(`${TRAINING_TYPE_LABELS[trainingType]} ${actionLabel}`);
   };
 
   if (!isReady) {
@@ -232,7 +270,7 @@ export default function App() {
             templates={data.templates}
             sessions={data.sessions}
             setEntries={data.setEntries}
-            onQuickTraining={addQuickTraining}
+            onToggleTraining={toggleHeatmapTraining}
           />
         ) : null}
         {view === "exercises" ? <ExercisesView exercises={data.exercises} sessions={data.sessions} setEntries={data.setEntries} /> : null}
@@ -506,155 +544,27 @@ function TrainView({
   );
 }
 
-function TrainingCalendar({
-  sessions,
-  anchorDate,
-  selectedDate,
-  onDateChange,
-  onQuickTraining,
-}: {
-  sessions: WorkoutSession[];
-  anchorDate: string;
-  selectedDate: string;
-  onDateChange: (date: string) => void;
-  onQuickTraining: (date: string, trainingType: TrainingType) => Promise<void>;
-}) {
-  const windows = useMemo(() => buildTrainingWindows(sessions, anchorDate), [anchorDate, sessions]);
-  const selectedCount = windows.flatMap((window) => window.days).find((day) => day.date === selectedDate)?.count ?? 0;
-  const scrollerRef = useRef<HTMLDivElement>(null);
-  const didPositionCalendar = useRef(false);
-  const pointerStart = useRef<{ date: string; x: number; y: number } | null>(null);
-  const [quickDate, setQuickDate] = useState<string | null>(null);
-
-  useEffect(() => {
-    const scroller = scrollerRef.current;
-    if (!scroller || didPositionCalendar.current) return;
-
-    const frame = window.requestAnimationFrame(() => {
-      scroller.scrollLeft = scroller.scrollWidth - scroller.clientWidth;
-      didPositionCalendar.current = true;
-    });
-
-    return () => window.cancelAnimationFrame(frame);
-  }, [windows.length]);
-
-  const openQuickPicker = (date: string) => {
-    onDateChange(date);
-    setQuickDate(date);
-  };
-
-  const registerQuickTraining = async (trainingType: TrainingType) => {
-    if (!quickDate) return;
-    await onQuickTraining(quickDate, trainingType);
-    setQuickDate(null);
-  };
-
-  const handleDayPointerDown = (date: string, event: ReactPointerEvent<HTMLButtonElement>) => {
-    pointerStart.current = { date, x: event.clientX, y: event.clientY };
-  };
-
-  const handleDayPointerUp = (date: string, event: ReactPointerEvent<HTMLButtonElement>) => {
-    const start = pointerStart.current;
-    pointerStart.current = null;
-    if (!start || start.date !== date) return;
-
-    const deltaX = Math.abs(event.clientX - start.x);
-    const deltaY = Math.abs(event.clientY - start.y);
-    if (deltaX > 10 || deltaY > 10) return;
-
-    openQuickPicker(date);
-  };
-
-  return (
-    <article className="calendar-panel" data-testid="training-calendar">
-      <div className="calendar-head">
-        <div>
-          <span>Constancia</span>
-          <h2>Entrenos</h2>
-        </div>
-        <strong>{selectedCount}/2</strong>
-      </div>
-      <div ref={scrollerRef} className="calendar-scroller" aria-label="Calendario de entrenamientos" data-testid="training-calendar-scroller">
-        {windows.map((window, index) => (
-          <section
-            className="calendar-window"
-            key={window.id}
-            aria-label={index === windows.length - 1 ? "Periodo actual" : `Periodo anterior ${windows.length - 1 - index}`}
-          >
-            <div className="calendar-window-label">{window.label}</div>
-            <div className="calendar-grid">
-              {window.days.map((day) => (
-                <button
-                  key={day.date}
-                  type="button"
-                  className={mergeClass("calendar-square", day.date === selectedDate && "calendar-square-selected")}
-                  data-count={day.count}
-                  onPointerDown={(event) => handleDayPointerDown(day.date, event)}
-                  onPointerUp={(event) => handleDayPointerUp(day.date, event)}
-                  onPointerCancel={() => {
-                    pointerStart.current = null;
-                  }}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" || event.key === " ") {
-                      event.preventDefault();
-                      openQuickPicker(day.date);
-                    }
-                  }}
-                  title={`${day.date}: ${day.count} entrenamientos`}
-                  aria-label={`${day.date}: ${day.count} entrenamientos`}
-                >
-                  <span>{day.dayLabel}</span>
-                </button>
-              ))}
-            </div>
-          </section>
-        ))}
-      </div>
-      {quickDate ? (
-        <div className="quick-picker" role="dialog" aria-label={`Registrar entrenamiento ${quickDate}`}>
-          <div>
-            <span>Registrar</span>
-            <strong>{quickDate}</strong>
-          </div>
-          <div className="quick-picker-actions">
-            {QUICK_TRAINING_TYPES.map((trainingType) => (
-              <button
-                key={trainingType}
-                type="button"
-                onClick={() => registerQuickTraining(trainingType)}
-                aria-label={`Registrar ${TRAINING_TYPE_LABELS[trainingType]}`}
-              >
-                {TRAINING_TYPE_LABELS[trainingType]}
-              </button>
-            ))}
-          </div>
-        </div>
-      ) : null}
-    </article>
-  );
-}
-
 function ProgressView({
   templates,
   sessions,
   setEntries,
-  onQuickTraining,
+  onToggleTraining,
 }: {
   templates: WorkoutTemplate[];
   sessions: WorkoutSession[];
   setEntries: SetEntry[];
-  onQuickTraining: (date: string, trainingType: TrainingType) => Promise<void>;
+  onToggleTraining: (date: string, trainingType: TrainingType) => Promise<void>;
 }) {
   const [calendarAnchorDate] = useState(todayIso);
-  const [calendarDate, setCalendarDate] = useState(calendarAnchorDate);
   const heatmapScrollerRef = useRef<HTMLDivElement>(null);
   const didPositionHeatmap = useRef(false);
   const heatmap = useMemo(() => buildTrainingHeatmap(sessions, templates, setEntries, calendarAnchorDate), [calendarAnchorDate, sessions, setEntries, templates]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const scroller = heatmapScrollerRef.current;
     if (!scroller || didPositionHeatmap.current) return;
 
+    scroller.scrollLeft = scroller.scrollWidth - scroller.clientWidth;
     const frame = window.requestAnimationFrame(() => {
       scroller.scrollLeft = scroller.scrollWidth - scroller.clientWidth;
       didPositionHeatmap.current = true;
@@ -712,14 +622,16 @@ function ProgressView({
               <Fragment key={row.type}>
                 <div className="heatmap-label">{row.label}</div>
                 {row.cells.map((cell) => (
-                  <div
+                  <button
+                    type="button"
                     key={`${row.type}-${cell.date}`}
                     className={`heatmap-cell heatmap-level-${cell.level}`}
+                    onClick={() => onToggleTraining(cell.date, row.type)}
                     title={`${row.label} ${cell.date}${cell.trained ? ` · intensidad ${cell.intensity}` : ""}`}
                     aria-label={`${row.label} ${cell.date}${cell.trained ? " entrenado" : " descanso"}`}
                   >
                     {cell.trained ? <Check size={13} strokeWidth={3} /> : null}
-                  </div>
+                  </button>
                 ))}
                 <div className="heatmap-total">{row.totalDays}</div>
               </Fragment>
@@ -727,14 +639,6 @@ function ProgressView({
           </div>
         </div>
       </article>
-
-      <TrainingCalendar
-        sessions={sessions}
-        anchorDate={calendarAnchorDate}
-        selectedDate={calendarDate}
-        onDateChange={setCalendarDate}
-        onQuickTraining={onQuickTraining}
-      />
     </section>
   );
 }

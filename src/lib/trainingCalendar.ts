@@ -1,6 +1,7 @@
 import type { WorkoutSession } from "../types";
 
 export const QUICK_SESSION_TEMPLATE_ID = "template-quick-training";
+export const HEATMAP_UNCHECK_TEMPLATE_ID = "template-heatmap-uncheck";
 export const MAX_DAILY_TRAINING_COUNT = 2;
 
 export interface TrainingDay {
@@ -19,9 +20,14 @@ export function isQuickSession(session: WorkoutSession): boolean {
   return session.kind === "quick" || session.templateId === QUICK_SESSION_TEMPLATE_ID;
 }
 
+export function isManualUncheckSession(session: WorkoutSession): boolean {
+  return session.kind === "manual-uncheck" || session.templateId === HEATMAP_UNCHECK_TEMPLATE_ID;
+}
+
 export function countTrainingsByDate(sessions: WorkoutSession[]): Map<string, number> {
   const counts = new Map<string, number>();
   for (const session of sessions) {
+    if (isManualUncheckSession(session)) continue;
     counts.set(session.date, Math.min(MAX_DAILY_TRAINING_COUNT, (counts.get(session.date) ?? 0) + 1));
   }
   return counts;

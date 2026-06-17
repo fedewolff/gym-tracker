@@ -100,4 +100,29 @@ describe("training balance", () => {
     expect(heatmap.rows.find((row) => row.type === "leg")?.cells.find((cell) => cell.date === "2026-06-10")?.intensity).toBe(2);
     expect(heatmap.summary.totalTrainingDays).toBe(3);
   });
+
+  it("lets manual uncheck overrides hide a saved workout from balance", () => {
+    const sessions: WorkoutSession[] = [
+      { id: "s1", templateId: "leg-template", date: "2026-06-17", createdAt: "2026-06-17T12:00:00.000Z", kind: "workout" },
+      {
+        id: "s2",
+        templateId: "template-heatmap-uncheck",
+        date: "2026-06-17",
+        createdAt: "2026-06-17T13:00:00.000Z",
+        kind: "manual-uncheck",
+        trainingType: "leg",
+      },
+    ];
+
+    const heatmap = buildTrainingHeatmap(
+      sessions,
+      templates,
+      [{ id: "e1", sessionId: "s1", exerciseId: "x", date: "2026-06-17", setNumber: 1, weightText: "10", reps: "8" }],
+      "2026-06-17",
+    );
+
+    expect(countTrainingDaysByType(sessions, templates, "2026-06-04", "2026-06-17").leg).toBe(0);
+    expect(heatmap.rows.find((row) => row.type === "leg")?.totalDays).toBe(0);
+    expect(heatmap.rows.find((row) => row.type === "leg")?.cells.find((cell) => cell.date === "2026-06-17")?.trained).toBe(false);
+  });
 });

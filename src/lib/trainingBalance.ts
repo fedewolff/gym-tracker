@@ -1,5 +1,5 @@
 import type { SetEntry, TrainingType, WorkoutSession, WorkoutTemplate } from "../types";
-import { isQuickSession } from "./trainingCalendar";
+import { isManualUncheckSession, isQuickSession } from "./trainingCalendar";
 
 export const TRAINING_TYPE_LABELS: Record<TrainingType, string> = {
   leg: "Pierna",
@@ -98,10 +98,26 @@ export function countTrainingDaysByType(
     upper: new Set(),
     aerobic: new Set(),
   };
+  const uncheckedDaysByType: Record<TrainingType, Set<string>> = {
+    leg: new Set(),
+    upper: new Set(),
+    aerobic: new Set(),
+  };
 
   for (const session of sessions) {
     if (session.date < start || session.date > end) continue;
-    daysByType[resolveTrainingType(session, templates)].add(session.date);
+    const type = resolveTrainingType(session, templates);
+    if (isManualUncheckSession(session)) {
+      uncheckedDaysByType[type].add(session.date);
+      continue;
+    }
+    daysByType[type].add(session.date);
+  }
+
+  for (const type of TRAINING_TYPES) {
+    for (const date of uncheckedDaysByType[type]) {
+      daysByType[type].delete(date);
+    }
   }
 
   return {
@@ -162,12 +178,21 @@ export function buildTrainingHeatmap(
   }
 
   const intensityByTypeAndDate = new Map<string, number>();
+  const uncheckedKeys = new Set<string>();
   for (const session of sessions) {
     if (!daySet.has(session.date)) continue;
     const type = resolveTrainingType(session, templates);
     const key = `${type}:${session.date}`;
+    if (isManualUncheckSession(session)) {
+      uncheckedKeys.add(key);
+      continue;
+    }
     const intensity = Math.max(1, entryCountBySession.get(session.id) ?? 0);
     intensityByTypeAndDate.set(key, (intensityByTypeAndDate.get(key) ?? 0) + intensity);
+  }
+
+  for (const key of uncheckedKeys) {
+    intensityByTypeAndDate.delete(key);
   }
 
   const maxIntensity = Math.max(1, ...intensityByTypeAndDate.values());
