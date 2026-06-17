@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import {
   Check,
   Download,
@@ -11,20 +11,11 @@ import {
   Settings,
   Upload,
 } from "lucide-react";
-import {
-  CartesianGrid,
-  Line,
-  LineChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
 import { getAvailableMonths, getDefaultMonthId } from "./data/seed";
 import { db, ensureSeeded, exportBackup, importBackup } from "./lib/db";
 import { uid } from "./lib/ids";
 import { getLatestAnySet, getLatestSetsByNumber } from "./lib/progress";
-import { buildRollingTrainingBalance, TRAINING_TYPE_LABELS } from "./lib/trainingBalance";
+import { buildTrainingHeatmap, TRAINING_TYPE_LABELS } from "./lib/trainingBalance";
 import {
   buildTrainingWindows,
   MAX_DAILY_TRAINING_COUNT,
@@ -240,6 +231,7 @@ export default function App() {
           <ProgressView
             templates={data.templates}
             sessions={data.sessions}
+            setEntries={data.setEntries}
             onQuickTraining={addQuickTraining}
           />
         ) : null}
@@ -516,16 +508,18 @@ function TrainView({
 
 function TrainingCalendar({
   sessions,
+  anchorDate,
   selectedDate,
   onDateChange,
   onQuickTraining,
 }: {
   sessions: WorkoutSession[];
+  anchorDate: string;
   selectedDate: string;
   onDateChange: (date: string) => void;
   onQuickTraining: (date: string, trainingType: TrainingType) => Promise<void>;
 }) {
-  const windows = useMemo(() => buildTrainingWindows(sessions, selectedDate), [selectedDate, sessions]);
+  const windows = useMemo(() => buildTrainingWindows(sessions, anchorDate), [anchorDate, sessions]);
   const selectedCount = windows.flatMap((window) => window.days).find((day) => day.date === selectedDate)?.count ?? 0;
   const scrollerRef = useRef<HTMLDivElement>(null);
   const didPositionCalendar = useRef(false);
@@ -643,31 +637,31 @@ function TrainingCalendar({
 function ProgressView({
   templates,
   sessions,
+  setEntries,
   onQuickTraining,
 }: {
   templates: WorkoutTemplate[];
   sessions: WorkoutSession[];
+  setEntries: SetEntry[];
   onQuickTraining: (date: string, trainingType: TrainingType) => Promise<void>;
 }) {
-  const [calendarDate, setCalendarDate] = useState(todayIso);
-  const balanceScrollerRef = useRef<HTMLDivElement>(null);
-  const didPositionBalance = useRef(false);
-  const balancePoints = useMemo(() => buildRollingTrainingBalance(sessions, templates, todayIso()), [sessions, templates]);
-  const currentBalance = balancePoints[balancePoints.length - 1];
-  const balanceChartWidth = Math.max(860, balancePoints.length * 18);
-  const weeklyAverage = (value: number | undefined) => `${(value ?? 0).toFixed(1)}/sem`;
+  const [calendarAnchorDate] = useState(todayIso);
+  const [calendarDate, setCalendarDate] = useState(calendarAnchorDate);
+  const heatmapScrollerRef = useRef<HTMLDivElement>(null);
+  const didPositionHeatmap = useRef(false);
+  const heatmap = useMemo(() => buildTrainingHeatmap(sessions, templates, setEntries, calendarAnchorDate), [calendarAnchorDate, sessions, setEntries, templates]);
 
   useEffect(() => {
-    const scroller = balanceScrollerRef.current;
-    if (!scroller || didPositionBalance.current) return;
+    const scroller = heatmapScrollerRef.current;
+    if (!scroller || didPositionHeatmap.current) return;
 
     const frame = window.requestAnimationFrame(() => {
       scroller.scrollLeft = scroller.scrollWidth - scroller.clientWidth;
-      didPositionBalance.current = true;
+      didPositionHeatmap.current = true;
     });
 
     return () => window.cancelAnimationFrame(frame);
-  }, [balancePoints.length]);
+  }, [heatmap.days.length]);
 
   return (
     <section className="flow">
@@ -677,70 +671,66 @@ function ProgressView({
             <span>Balance</span>
             <h2>Últimos 14 días</h2>
           </div>
-          <strong>{currentBalance ? currentBalance.leg + currentBalance.upper + currentBalance.aerobic : 0}</strong>
+          <strong>{heatmap.summary.totalTrainingDays}</strong>
         </div>
 
-        <div className="balance-summary" data-testid="training-balance-summary">
+        <div className="heatmap-summary" data-testid="training-balance-summary">
           <div>
-            <span>Pierna</span>
-            <strong>{currentBalance?.leg ?? 0}</strong>
-            <small>{weeklyAverage(currentBalance?.legWeeklyAverage)}</small>
+            <span>Total</span>
+            <strong>{heatmap.summary.totalTrainingDays}</strong>
+            <small>checks</small>
           </div>
           <div>
-            <span>Superior</span>
-            <strong>{currentBalance?.upper ?? 0}</strong>
-            <small>{weeklyAverage(currentBalance?.upperWeeklyAverage)}</small>
+            <span>Más entrenado</span>
+            <strong>{heatmap.summary.mostTrained}</strong>
+            <small>grupo</small>
           </div>
           <div>
-            <span>Aeróbico</span>
-            <strong>{currentBalance?.aerobic ?? 0}</strong>
-            <small>{weeklyAverage(currentBalance?.aerobicWeeklyAverage)}</small>
+            <span>Menos entrenado</span>
+            <strong>{heatmap.summary.leastTrained}</strong>
+            <small>grupo</small>
           </div>
-        </div>
-
-        <div
-          ref={balanceScrollerRef}
-          className="balance-line-scroller"
-          data-testid="training-balance-line-scroller"
-          aria-label="Historial de balance rolling de 14 días"
-        >
-          <div className="balance-line-inner" style={{ width: `${balanceChartWidth}px` }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={balancePoints} margin={{ top: 14, right: 16, left: -14, bottom: 0 }}>
-                <CartesianGrid stroke="#2f3a34" vertical={false} />
-                <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#9fa99f" }} minTickGap={18} />
-                <YAxis tick={{ fontSize: 10, fill: "#9fa99f" }} allowDecimals={false} width={34} domain={[0, "dataMax + 1"]} />
-                <Tooltip
-                  content={({ active, payload }) => {
-                    if (!active || !payload?.length) return null;
-                    const point = payload[0].payload as (typeof balancePoints)[number];
-                    return (
-                      <div className="tooltip">
-                        <b>{point.date}</b>
-                        <span>Pierna: {point.leg}</span>
-                        <span>Superior: {point.upper}</span>
-                        <span>Aeróbico: {point.aerobic}</span>
-                      </div>
-                    );
-                  }}
-                />
-                <Line dataKey="leg" name="Pierna" type="monotone" stroke="#3ee58f" strokeWidth={2.5} dot={false} activeDot={{ r: 5 }} />
-                <Line dataKey="upper" name="Superior" type="monotone" stroke="#7bb4ff" strokeWidth={2.5} dot={false} activeDot={{ r: 5 }} />
-                <Line dataKey="aerobic" name="Aeróbico" type="monotone" stroke="#f4c95d" strokeWidth={2.5} dot={false} activeDot={{ r: 5 }} />
-              </LineChart>
-            </ResponsiveContainer>
+          <div>
+            <span>Desbalance</span>
+            <strong>{heatmap.summary.imbalance}</strong>
+            <small>14 días</small>
           </div>
         </div>
 
-        <div className="balance-legend">
-          <span><i className="legend-leg" />Pierna</span>
-          <span><i className="legend-upper" />Superior</span>
-          <span><i className="legend-aerobic" />Aeróbico</span>
+        <div ref={heatmapScrollerRef} className="heatmap-scroller" data-testid="training-heatmap" aria-label="Heatmap de entrenamientos últimos 14 días">
+          <div className="heatmap-grid">
+            <div className="heatmap-label heatmap-head">Grupo</div>
+            {heatmap.days.map((day) => (
+              <div className="heatmap-day-head" key={day.date}>
+                <span>{day.weekday}</span>
+                <strong>{day.label}</strong>
+              </div>
+            ))}
+            <div className="heatmap-total-head">Últimos 14 días</div>
+
+            {heatmap.rows.map((row) => (
+              <Fragment key={row.type}>
+                <div className="heatmap-label">{row.label}</div>
+                {row.cells.map((cell) => (
+                  <div
+                    key={`${row.type}-${cell.date}`}
+                    className={`heatmap-cell heatmap-level-${cell.level}`}
+                    title={`${row.label} ${cell.date}${cell.trained ? ` · intensidad ${cell.intensity}` : ""}`}
+                    aria-label={`${row.label} ${cell.date}${cell.trained ? " entrenado" : " descanso"}`}
+                  >
+                    {cell.trained ? <Check size={13} strokeWidth={3} /> : null}
+                  </div>
+                ))}
+                <div className="heatmap-total">{row.totalDays}</div>
+              </Fragment>
+            ))}
+          </div>
         </div>
       </article>
 
       <TrainingCalendar
         sessions={sessions}
+        anchorDate={calendarAnchorDate}
         selectedDate={calendarDate}
         onDateChange={setCalendarDate}
         onQuickTraining={onQuickTraining}

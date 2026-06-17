@@ -60,6 +60,15 @@ describe("progress helpers", () => {
     expect(windows[1].days[29].date).toBe("2026-06-17");
   });
 
+  it("keeps window ranges anchored to today even when a past date is selected elsewhere", () => {
+    const selectedDate = "2026-05-01";
+    const windows = buildTrainingWindows(sessions, "2026-06-17", 2);
+
+    expect(selectedDate).toBe("2026-05-01");
+    expect(windows[1].label).toBe("Últimos 30");
+    expect(windows[1].days[29].date).toBe("2026-06-17");
+  });
+
   it("cycles quick session counts without deleting planned workouts", () => {
     expect(getNextQuickSessionCount(0, 0)).toBe(1);
     expect(getNextQuickSessionCount(0, 1)).toBe(2);

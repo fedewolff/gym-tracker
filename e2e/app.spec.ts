@@ -31,23 +31,21 @@ test("records fixed leg plan and monthly upper plan, then charts progress", asyn
   await expect(page.getByTestId("training-balance-summary")).toContainText("Pierna");
   await expect(page.getByTestId("training-balance-summary")).toContainText("Superior");
   await expect(page.getByTestId("training-balance-summary")).toContainText("Aeróbico");
-  await expect(page.getByTestId("training-balance-summary")).toContainText("0.5/sem");
+  await expect(page.getByTestId("training-balance-summary")).toContainText("Desbalance");
+  await expect(page.getByTestId("training-heatmap")).toContainText("Últimos 14 días");
+  await expect(page.locator(".heatmap-day-head")).toHaveCount(14);
+  await expect(page.locator(".heatmap-total").first()).toContainText("1");
+  await expect(page.locator(".heatmap-cell.heatmap-level-4").first()).toBeVisible();
+  if ((page.viewportSize()?.width ?? 0) < 760) {
+    const heatmapScroll = await page.getByTestId("training-heatmap").evaluate((element) => ({
+      left: element.scrollLeft,
+      max: element.scrollWidth - element.clientWidth,
+    }));
+    expect(heatmapScroll.max).toBeGreaterThan(0);
+    expect(heatmapScroll.left).toBeGreaterThanOrEqual(heatmapScroll.max - 4);
+  }
   await expect(page.getByLabel("Ejercicio")).toHaveCount(0);
   await expect(page.getByTestId("progress-chart")).toHaveCount(0);
-
-  const balanceScroll = await page.getByTestId("training-balance-line-scroller").evaluate((element) => ({
-    left: element.scrollLeft,
-    max: element.scrollWidth - element.clientWidth,
-    scrollWidth: element.scrollWidth,
-    clientWidth: element.clientWidth,
-  }));
-  expect(balanceScroll.scrollWidth).toBeGreaterThan(balanceScroll.clientWidth);
-  expect(balanceScroll.left).toBeGreaterThanOrEqual(balanceScroll.max - 4);
-  await page.getByTestId("training-balance-line-scroller").evaluate((element) => {
-    element.scrollLeft = 0;
-  });
-  const pastBalanceScroll = await page.getByTestId("training-balance-line-scroller").evaluate((element) => element.scrollLeft);
-  expect(pastBalanceScroll).toBeLessThan(balanceScroll.left);
 
   await expect(page.getByTestId("training-calendar-scroller")).toContainText("Últimos 30");
   await expect(page.getByTestId("training-calendar-scroller")).toContainText("30-59 días atrás");
@@ -72,6 +70,29 @@ test("records fixed leg plan and monthly upper plan, then charts progress", asyn
     );
     if (previousWindow) element.scrollLeft = previousWindow.offsetLeft;
   });
+  await expect(page.getByText("30-59 días atrás")).toBeInViewport();
+  const pastTap = await page.getByTestId("training-calendar-scroller").evaluate((element) => {
+    const previousWindow = Array.from(element.querySelectorAll<HTMLElement>(".calendar-window")).find((window) =>
+      window.textContent?.includes("30-59 días atrás"),
+    );
+    const button = previousWindow?.querySelector<HTMLButtonElement>(".calendar-square");
+    const label = button?.getAttribute("aria-label") ?? "";
+
+    return {
+      date: label.split(":")[0],
+      left: element.scrollLeft,
+    };
+  });
+  expect(pastTap.date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  const pastDateSquare = page.locator(`[aria-label^="${pastTap.date}:"]`);
+  await pastDateSquare.click();
+  await expect(page.getByRole("dialog", { name: `Registrar entrenamiento ${pastTap.date}` })).toBeVisible();
+  const afterPastTapLeft = await page.getByTestId("training-calendar-scroller").evaluate((element) => element.scrollLeft);
+  expect(Math.abs(afterPastTapLeft - pastTap.left)).toBeLessThanOrEqual(4);
+  await page.getByRole("button", { name: "Registrar Aeróbico" }).click();
+  await expect(pastDateSquare).toHaveAttribute("data-count", "1");
+  const afterPastSaveLeft = await page.getByTestId("training-calendar-scroller").evaluate((element) => element.scrollLeft);
+  expect(Math.abs(afterPastSaveLeft - pastTap.left)).toBeLessThanOrEqual(4);
   await expect(page.getByText("30-59 días atrás")).toBeInViewport();
   await page.getByTestId("training-calendar-scroller").evaluate((element) => {
     element.scrollLeft = element.scrollWidth - element.clientWidth;
@@ -110,7 +131,8 @@ test("records fixed leg plan and monthly upper plan, then charts progress", asyn
 
   await page.getByRole("button", { name: "Progreso" }).click();
   await expect(page.getByTestId("training-balance-chart")).toContainText("3");
-  await expect(page.getByTestId("training-balance-summary")).toContainText("0.5/sem");
+  await expect(page.getByTestId("training-balance-summary")).toContainText("Desbalance");
+  await expect(page.locator(".heatmap-total").first()).toContainText("1");
   await expect(page.getByLabel("Ejercicio")).toHaveCount(0);
   await expect(page.getByTestId("progress-chart")).toHaveCount(0);
 

@@ -355,7 +355,7 @@ textarea:focus {
 }
 
 .quick-picker span,
-.balance-summary span {
+.heatmap-summary span {
   color: var(--muted);
   display: block;
   font-size: 0.68rem;
@@ -600,14 +600,14 @@ textarea:focus {
   text-align: center;
 }
 
-.balance-summary {
+.heatmap-summary {
   display: grid;
   gap: 8px;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   margin-top: 14px;
 }
 
-.balance-summary div {
+.heatmap-summary div {
   background: #0f1512;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -616,30 +616,19 @@ textarea:focus {
   padding: 10px;
 }
 
-.balance-summary strong {
+.heatmap-summary strong {
   color: var(--ink);
-  font-size: 1.35rem;
-  line-height: 1;
+  font-size: 1rem;
+  line-height: 1.05;
+  overflow-wrap: anywhere;
 }
 
-.balance-summary small {
+.heatmap-summary small {
   color: var(--muted);
   font-weight: 800;
 }
 
-.legend-leg {
-  background: var(--green);
-}
-
-.legend-upper {
-  background: var(--blue);
-}
-
-.legend-aerobic {
-  background: #f4c95d;
-}
-
-.balance-line-scroller {
+.heatmap-scroller {
   -webkit-overflow-scrolling: touch;
   margin-top: 14px;
   max-width: 100%;
@@ -651,33 +640,106 @@ textarea:focus {
   width: 100%;
 }
 
-.balance-line-inner {
-  flex: 0 0 auto;
-  height: 260px;
-  min-width: 100%;
+.heatmap-grid {
+  display: grid;
+  gap: 6px;
+  grid-template-columns: 82px repeat(14, 32px) 74px;
+  min-width: max-content;
 }
 
-.balance-legend {
+.heatmap-label,
+.heatmap-day-head,
+.heatmap-total-head,
+.heatmap-total {
+  align-items: center;
   display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
   justify-content: center;
 }
 
-.balance-legend span {
-  align-items: center;
+.heatmap-label {
+  background: var(--panel);
   color: var(--muted-strong);
-  display: inline-flex;
-  font-size: 0.78rem;
+  font-size: 0.76rem;
   font-weight: 800;
-  gap: 5px;
+  justify-content: flex-start;
+  left: 0;
+  min-height: 34px;
+  position: sticky;
+  z-index: 2;
 }
 
-.balance-legend i {
-  border-radius: 3px;
-  display: inline-block;
-  height: 10px;
-  width: 14px;
+.heatmap-head,
+.heatmap-day-head,
+.heatmap-total-head {
+  color: var(--muted);
+  font-size: 0.64rem;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.heatmap-day-head {
+  display: grid;
+  gap: 1px;
+  justify-items: center;
+  min-height: 38px;
+}
+
+.heatmap-day-head strong {
+  color: var(--muted-strong);
+  font-size: 0.68rem;
+}
+
+.heatmap-total-head {
+  background: var(--panel);
+  line-height: 1.05;
+  position: sticky;
+  right: 0;
+  text-align: center;
+  z-index: 2;
+}
+
+.heatmap-cell,
+.heatmap-total {
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  min-height: 32px;
+}
+
+.heatmap-cell {
+  align-items: center;
+  background: #101713;
+  color: #06140c;
+  display: flex;
+  justify-content: center;
+}
+
+.heatmap-level-1 {
+  background: #193222;
+  color: #caffe2;
+}
+
+.heatmap-level-2 {
+  background: #23573a;
+  color: #d9ffe9;
+}
+
+.heatmap-level-3 {
+  background: #2b8a59;
+  color: #effff6;
+}
+
+.heatmap-level-4 {
+  background: var(--green);
+  border-color: var(--green);
+}
+
+.heatmap-total {
+  background: #0f1512;
+  color: var(--ink);
+  font-weight: 850;
+  position: sticky;
+  right: 0;
+  z-index: 2;
 }
 
 .tooltip {
@@ -809,8 +871,8 @@ textarea:focus {
     position: static;
   }
 
-  .balance-line-inner {
-    height: 320px;
+  .heatmap-summary {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
   .settings-actions {

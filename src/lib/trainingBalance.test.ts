@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { WorkoutSession, WorkoutTemplate } from "../types";
 import {
+  buildTrainingHeatmap,
   buildRollingTrainingBalance,
   countTrainingDaysByType,
   resolveTrainingType,
@@ -70,5 +71,33 @@ describe("training balance", () => {
     expect(points).toHaveLength(90);
     expect(points[0].date).toBe("2026-03-20");
     expect(points[89].date).toBe("2026-06-17");
+  });
+
+  it("builds a 14-day heatmap with intensity from recorded sets", () => {
+    const sessions: WorkoutSession[] = [
+      { id: "s1", templateId: "leg-template", date: "2026-06-10", createdAt: "2026-06-10T12:00:00.000Z", kind: "workout" },
+      { id: "s2", templateId: "upper-template", date: "2026-06-17", createdAt: "2026-06-17T12:00:00.000Z", kind: "workout" },
+      { id: "s3", templateId: "template-quick-training", date: "2026-06-17", createdAt: "2026-06-17T13:00:00.000Z", kind: "quick" },
+    ];
+
+    const heatmap = buildTrainingHeatmap(
+      sessions,
+      templates,
+      [
+        { id: "e1", sessionId: "s1", exerciseId: "x", date: "2026-06-10", setNumber: 1, weightText: "10", reps: "8" },
+        { id: "e2", sessionId: "s1", exerciseId: "x", date: "2026-06-10", setNumber: 2, weightText: "10", reps: "8" },
+        { id: "e3", sessionId: "s2", exerciseId: "y", date: "2026-06-17", setNumber: 1, weightText: "20", reps: "8" },
+      ],
+      "2026-06-17",
+    );
+
+    expect(heatmap.days).toHaveLength(14);
+    expect(heatmap.days[0].date).toBe("2026-06-04");
+    expect(heatmap.days[13].date).toBe("2026-06-17");
+    expect(heatmap.rows.find((row) => row.type === "leg")?.totalDays).toBe(1);
+    expect(heatmap.rows.find((row) => row.type === "upper")?.totalDays).toBe(1);
+    expect(heatmap.rows.find((row) => row.type === "aerobic")?.totalDays).toBe(1);
+    expect(heatmap.rows.find((row) => row.type === "leg")?.cells.find((cell) => cell.date === "2026-06-10")?.intensity).toBe(2);
+    expect(heatmap.summary.totalTrainingDays).toBe(3);
   });
 });

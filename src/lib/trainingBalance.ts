@@ -1,4 +1,4 @@
-import type { TrainingType, WorkoutSession, WorkoutTemplate } from "../types";
+import type { SetEntry, TrainingType, WorkoutSession, WorkoutTemplate } from "../types";
 import { isQuickSession } from "./trainingCalendar";
 
 export const TRAINING_TYPE_LABELS: Record<TrainingType, string> = {
@@ -19,6 +19,40 @@ export interface TrainingBalancePoint {
 }
 
 const TRAINING_TYPES: TrainingType[] = ["leg", "upper", "aerobic"];
+const WEEKDAY_LABELS = ["D", "L", "M", "M", "J", "V", "S"];
+
+export interface TrainingHeatmapDay {
+  date: string;
+  label: string;
+  weekday: string;
+}
+
+export interface TrainingHeatmapCell {
+  date: string;
+  trained: boolean;
+  intensity: number;
+  level: number;
+}
+
+export interface TrainingHeatmapRow {
+  type: TrainingType;
+  label: string;
+  cells: TrainingHeatmapCell[];
+  totalDays: number;
+}
+
+export interface TrainingHeatmapSummary {
+  totalTrainingDays: number;
+  mostTrained: string;
+  leastTrained: string;
+  imbalance: string;
+}
+
+export interface TrainingHeatmap {
+  days: TrainingHeatmapDay[];
+  rows: TrainingHeatmapRow[];
+  summary: TrainingHeatmapSummary;
+}
 
 function dateFromIso(date: string): Date {
   return new Date(`${date}T12:00:00`);
@@ -103,6 +137,75 @@ export function buildRollingTrainingBalance(
       aerobicWeeklyAverage: counts.aerobic / weekCount,
     };
   });
+}
+
+export function buildTrainingHeatmap(
+  sessions: WorkoutSession[],
+  templates: WorkoutTemplate[],
+  setEntries: SetEntry[],
+  anchorDate: string,
+  windowDays = 14,
+): TrainingHeatmap {
+  const anchor = dateFromIso(anchorDate);
+  const days = Array.from({ length: windowDays }, (_, index) => {
+    const date = shiftDate(anchor, index - windowDays + 1);
+    return {
+      date: isoFromDate(date),
+      label: formatPointLabel(date),
+      weekday: WEEKDAY_LABELS[date.getDay()],
+    };
+  });
+  const daySet = new Set(days.map((day) => day.date));
+  const entryCountBySession = new Map<string, number>();
+  for (const entry of setEntries) {
+    entryCountBySession.set(entry.sessionId, (entryCountBySession.get(entry.sessionId) ?? 0) + 1);
+  }
+
+  const intensityByTypeAndDate = new Map<string, number>();
+  for (const session of sessions) {
+    if (!daySet.has(session.date)) continue;
+    const type = resolveTrainingType(session, templates);
+    const key = `${type}:${session.date}`;
+    const intensity = Math.max(1, entryCountBySession.get(session.id) ?? 0);
+    intensityByTypeAndDate.set(key, (intensityByTypeAndDate.get(key) ?? 0) + intensity);
+  }
+
+  const maxIntensity = Math.max(1, ...intensityByTypeAndDate.values());
+  const rows = TRAINING_TYPES.map((type) => {
+    const cells = days.map((day) => {
+      const intensity = intensityByTypeAndDate.get(`${type}:${day.date}`) ?? 0;
+      return {
+        date: day.date,
+        trained: intensity > 0,
+        intensity,
+        level: intensity === 0 ? 0 : Math.max(1, Math.ceil((intensity / maxIntensity) * 4)),
+      };
+    });
+
+    return {
+      type,
+      label: TRAINING_TYPE_LABELS[type],
+      cells,
+      totalDays: cells.filter((cell) => cell.trained).length,
+    };
+  });
+
+  const totals = rows.map((row) => row.totalDays);
+  const maxTotal = Math.max(...totals);
+  const minTotal = Math.min(...totals);
+  const mostTrainedRows = rows.filter((row) => row.totalDays === maxTotal);
+  const leastTrainedRows = rows.filter((row) => row.totalDays === minTotal);
+
+  return {
+    days,
+    rows,
+    summary: {
+      totalTrainingDays: totals.reduce((sum, count) => sum + count, 0),
+      mostTrained: mostTrainedRows.map((row) => row.label).join(", "),
+      leastTrained: leastTrainedRows.map((row) => row.label).join(", "),
+      imbalance: maxTotal - minTotal >= 2 ? `${maxTotal - minTotal} días de diferencia` : "Balanceado",
+    },
+  };
 }
 
 export function hasTrainingType(value: string): value is TrainingType {
