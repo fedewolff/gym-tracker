@@ -2,6 +2,14 @@ import { describe, expect, it } from "vitest";
 import { getAvailableMonths, getDefaultMonthId, buildSeedData } from "./seed";
 import { buildCurrentLegExercises, buildWorkoutTemplates, parseExcelUpperRows, parsePdfPlan } from "./parsers";
 import { PDF_PLAN_TEXT, UPPER_MONTH_ROWS } from "./sourceData";
+import { exerciseId } from "../lib/ids";
+
+const EXPECTED_UPPER_COUNTS = {
+  "Mayo 2026": { 1: 8, 2: 8 },
+  "Junio 2026": { 1: 9, 2: 9 },
+  "Julio 2026": { 1: 8, 2: 8 },
+  "Agosto 2026": { 1: 8, 2: 8 },
+} as const;
 
 describe("data seed", () => {
   it("parses the PDF as the only fixed leg plan with videos", () => {
@@ -31,8 +39,9 @@ describe("data seed", () => {
 
     expect(months.map((month) => month.label)).toEqual(["Mayo 2026", "Junio 2026", "Julio 2026", "Agosto 2026"]);
     for (const month of months) {
-      expect(templates.find((template) => template.monthId === month.id && template.upperDay === 1)?.exercises.length).toBeGreaterThan(0);
-      expect(templates.find((template) => template.monthId === month.id && template.upperDay === 2)?.exercises.length).toBeGreaterThan(0);
+      const expected = EXPECTED_UPPER_COUNTS[month.label as keyof typeof EXPECTED_UPPER_COUNTS];
+      expect(templates.find((template) => template.monthId === month.id && template.upperDay === 1)?.exercises.length).toBe(expected[1]);
+      expect(templates.find((template) => template.monthId === month.id && template.upperDay === 2)?.exercises.length).toBe(expected[2]);
     }
     expect(templates.filter((template) => template.type === "leg")).toHaveLength(1);
   });
@@ -68,5 +77,27 @@ describe("data seed", () => {
 
     expect(parseExcelUpperRows(UPPER_MONTH_ROWS).length).toBe(66);
     expect(augustPress).toMatchObject({ targetReps: "6-4-4-2", targetSeries: 4 });
+  });
+
+  it("preserves every Excel row prescription in its monthly template", () => {
+    const legExercises = buildCurrentLegExercises(PDF_PLAN_TEXT);
+    const templates = buildWorkoutTemplates(legExercises, UPPER_MONTH_ROWS);
+
+    for (const row of UPPER_MONTH_ROWS) {
+      const template = templates.find(
+        (candidate) => candidate.monthLabel === row.monthLabel && candidate.upperDay === row.day,
+      );
+      const item = template?.exercises.find(
+        (candidate) => candidate.exerciseId === exerciseId(row.exercise) && candidate.order === row.order,
+      );
+
+      expect(item, `${row.monthLabel} Superior ${row.day} #${row.order} ${row.exercise}`).toMatchObject({
+        block: row.block,
+        targetSeries: row.series,
+        targetReps: row.reps,
+        weightHint: row.weight,
+      });
+      expect(item?.effortTarget ?? "").toBe(row.effort ?? "");
+    }
   });
 });
