@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import {
   Check,
   ChevronDown,
@@ -26,14 +26,14 @@ import { getAvailableMonths, getDefaultMonthId } from "./data/seed";
 import { db, ensureSeeded, exportBackup, importBackup } from "./lib/db";
 import { uid } from "./lib/ids";
 import { calculateProgressPoints, getLatestAnySet, getLatestSetsByNumber } from "./lib/progress";
+import { buildRollingTrainingBalance, TRAINING_TYPE_LABELS } from "./lib/trainingBalance";
 import {
   buildTrainingWindows,
-  getNextQuickSessionCount,
-  isQuickSession,
+  MAX_DAILY_TRAINING_COUNT,
   QUICK_SESSION_TEMPLATE_ID,
 } from "./lib/trainingCalendar";
 import { extractWeightNumber, formatWeight } from "./lib/weights";
-import type { BackupPayload, Exercise, SetEntry, WorkoutSession, WorkoutTemplate, WorkoutTemplateExercise } from "./types";
+import type { BackupPayload, Exercise, SetEntry, TrainingType, WorkoutSession, WorkoutTemplate, WorkoutTemplateExercise } from "./types";
 
 type View = "train" | "progress" | "exercises" | "settings";
 type WorkoutKind = "leg" | "upper";
@@ -60,6 +60,8 @@ const TABS: Array<{ id: View; label: string; icon: typeof Dumbbell }> = [
   { id: "exercises", label: "Ejercicios", icon: Search },
   { id: "settings", label: "Ajustes", icon: Settings },
 ];
+
+const QUICK_TRAINING_TYPES: TrainingType[] = ["leg", "upper", "aerobic"];
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
@@ -146,6 +148,7 @@ export default function App() {
       templateId: template.id,
       date,
       kind: "workout",
+      trainingType: template.type,
       painLevel,
       notes,
       createdAt: new Date().toISOString(),
@@ -175,43 +178,26 @@ export default function App() {
     setStatus("Entrenamiento guardado");
   };
 
-  const toggleQuickTraining = async (date: string) => {
+  const addQuickTraining = async (date: string, trainingType: TrainingType) => {
     const daySessions = data.sessions.filter((session) => session.date === date);
-    const quickSessions = daySessions
-      .filter(isQuickSession)
-      .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-    const normalCount = daySessions.length - quickSessions.length;
-    const nextQuickCount = getNextQuickSessionCount(normalCount, quickSessions.length);
 
-    if (normalCount >= 2 && quickSessions.length === 0) {
+    if (daySessions.length >= MAX_DAILY_TRAINING_COUNT) {
       setStatus("Ese día ya tiene 2 entrenamientos");
       return;
     }
 
-    await db.transaction("rw", db.sessions, async () => {
-      if (nextQuickCount > quickSessions.length) {
-        const missing = nextQuickCount - quickSessions.length;
-        const now = Date.now();
-        await db.sessions.bulkPut(
-          Array.from({ length: missing }, (_, index) => ({
-            id: uid("session"),
-            templateId: QUICK_SESSION_TEMPLATE_ID,
-            date,
-            kind: "quick" as const,
-            notes: "Registro rapido",
-            createdAt: new Date(now + index).toISOString(),
-          })),
-        );
-      }
-
-      if (nextQuickCount < quickSessions.length) {
-        const removable = quickSessions.slice(nextQuickCount).map((session) => session.id);
-        await db.sessions.bulkDelete(removable);
-      }
+    await db.sessions.put({
+      id: uid("session"),
+      templateId: QUICK_SESSION_TEMPLATE_ID,
+      date,
+      kind: "quick",
+      trainingType,
+      notes: `Registro rapido: ${TRAINING_TYPE_LABELS[trainingType]}`,
+      createdAt: new Date().toISOString(),
     });
 
     await loadData();
-    setStatus(nextQuickCount > quickSessions.length ? "Entrenamiento rápido guardado" : "Entrenamiento rápido actualizado");
+    setStatus(`${TRAINING_TYPE_LABELS[trainingType]} guardado`);
   };
 
   if (!isReady) {
@@ -255,12 +241,13 @@ export default function App() {
             sessions={data.sessions}
             setEntries={data.setEntries}
             onSave={saveWorkout}
-            onQuickTraining={toggleQuickTraining}
+            onQuickTraining={addQuickTraining}
           />
         ) : null}
         {view === "progress" && selectedExercise ? (
           <ProgressView
             exercises={data.exercises}
+            templates={data.templates}
             selectedExercise={selectedExercise}
             selectedExerciseId={selectedExerciseId}
             setSelectedExerciseId={setSelectedExerciseId}
@@ -314,7 +301,7 @@ function TrainView({
   sessions: WorkoutSession[];
   setEntries: SetEntry[];
   onSave: (template: WorkoutTemplate, date: string, painLevel: number | undefined, draft: WorkoutDraft, notes: string) => Promise<void>;
-  onQuickTraining: (date: string) => Promise<void>;
+  onQuickTraining: (date: string, trainingType: TrainingType) => Promise<void>;
 }) {
   const [date, setDate] = useState(todayIso);
   const [painLevel, setPainLevel] = useState("0");
@@ -559,12 +546,14 @@ function TrainingCalendar({
   sessions: WorkoutSession[];
   selectedDate: string;
   onDateChange: (date: string) => void;
-  onQuickTraining: (date: string) => Promise<void>;
+  onQuickTraining: (date: string, trainingType: TrainingType) => Promise<void>;
 }) {
   const windows = useMemo(() => buildTrainingWindows(sessions, selectedDate), [selectedDate, sessions]);
   const selectedCount = windows.flatMap((window) => window.days).find((day) => day.date === selectedDate)?.count ?? 0;
   const scrollerRef = useRef<HTMLDivElement>(null);
   const didPositionCalendar = useRef(false);
+  const pointerStart = useRef<{ date: string; x: number; y: number } | null>(null);
+  const [quickDate, setQuickDate] = useState<string | null>(null);
 
   useEffect(() => {
     const scroller = scrollerRef.current;
@@ -578,9 +567,31 @@ function TrainingCalendar({
     return () => window.cancelAnimationFrame(frame);
   }, [windows.length]);
 
-  const handleQuickTraining = async (date: string) => {
+  const openQuickPicker = (date: string) => {
     onDateChange(date);
-    await onQuickTraining(date);
+    setQuickDate(date);
+  };
+
+  const registerQuickTraining = async (trainingType: TrainingType) => {
+    if (!quickDate) return;
+    await onQuickTraining(quickDate, trainingType);
+    setQuickDate(null);
+  };
+
+  const handleDayPointerDown = (date: string, event: ReactPointerEvent<HTMLButtonElement>) => {
+    pointerStart.current = { date, x: event.clientX, y: event.clientY };
+  };
+
+  const handleDayPointerUp = (date: string, event: ReactPointerEvent<HTMLButtonElement>) => {
+    const start = pointerStart.current;
+    pointerStart.current = null;
+    if (!start || start.date !== date) return;
+
+    const deltaX = Math.abs(event.clientX - start.x);
+    const deltaY = Math.abs(event.clientY - start.y);
+    if (deltaX > 10 || deltaY > 10) return;
+
+    openQuickPicker(date);
   };
 
   return (
@@ -607,7 +618,17 @@ function TrainingCalendar({
                   type="button"
                   className={mergeClass("calendar-square", day.date === selectedDate && "calendar-square-selected")}
                   data-count={day.count}
-                  onClick={() => handleQuickTraining(day.date)}
+                  onPointerDown={(event) => handleDayPointerDown(day.date, event)}
+                  onPointerUp={(event) => handleDayPointerUp(day.date, event)}
+                  onPointerCancel={() => {
+                    pointerStart.current = null;
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      openQuickPicker(day.date);
+                    }
+                  }}
                   title={`${day.date}: ${day.count} entrenamientos`}
                   aria-label={`${day.date}: ${day.count} entrenamientos`}
                 >
@@ -618,12 +639,33 @@ function TrainingCalendar({
           </section>
         ))}
       </div>
+      {quickDate ? (
+        <div className="quick-picker" role="dialog" aria-label={`Registrar entrenamiento ${quickDate}`}>
+          <div>
+            <span>Registrar</span>
+            <strong>{quickDate}</strong>
+          </div>
+          <div className="quick-picker-actions">
+            {QUICK_TRAINING_TYPES.map((trainingType) => (
+              <button
+                key={trainingType}
+                type="button"
+                onClick={() => registerQuickTraining(trainingType)}
+                aria-label={`Registrar ${TRAINING_TYPE_LABELS[trainingType]}`}
+              >
+                {TRAINING_TYPE_LABELS[trainingType]}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
     </article>
   );
 }
 
 function ProgressView({
   exercises,
+  templates,
   selectedExercise,
   selectedExerciseId,
   setSelectedExerciseId,
@@ -631,6 +673,7 @@ function ProgressView({
   setEntries,
 }: {
   exercises: Exercise[];
+  templates: WorkoutTemplate[];
   selectedExercise: Exercise;
   selectedExerciseId: string;
   setSelectedExerciseId: (id: string) => void;
@@ -638,10 +681,64 @@ function ProgressView({
   setEntries: SetEntry[];
 }) {
   const points = useMemo(() => calculateProgressPoints(selectedExercise.id, sessions, setEntries), [selectedExercise.id, sessions, setEntries]);
+  const balancePoints = useMemo(() => buildRollingTrainingBalance(sessions, templates, todayIso()), [sessions, templates]);
+  const currentBalance = balancePoints[balancePoints.length - 1];
+  const maxBalanceTotal = Math.max(1, ...balancePoints.map((point) => point.leg + point.upper + point.aerobic));
   const latest = points[points.length - 1];
 
   return (
     <section className="flow">
+      <article className="chart-panel" data-testid="training-balance-chart">
+        <div className="chart-head">
+          <div>
+            <span>Balance</span>
+            <h2>Últimos 14 días</h2>
+          </div>
+          <strong>{currentBalance ? currentBalance.leg + currentBalance.upper + currentBalance.aerobic : 0}</strong>
+        </div>
+
+        <div className="balance-summary" data-testid="training-balance-summary">
+          <div>
+            <span>Pierna</span>
+            <strong>{currentBalance?.leg ?? 0}</strong>
+            <small>{((currentBalance?.legAverage ?? 0) * 100).toFixed(0)}%</small>
+          </div>
+          <div>
+            <span>Superior</span>
+            <strong>{currentBalance?.upper ?? 0}</strong>
+            <small>{((currentBalance?.upperAverage ?? 0) * 100).toFixed(0)}%</small>
+          </div>
+          <div>
+            <span>Aeróbico</span>
+            <strong>{currentBalance?.aerobic ?? 0}</strong>
+            <small>{((currentBalance?.aerobicAverage ?? 0) * 100).toFixed(0)}%</small>
+          </div>
+        </div>
+
+        <div className="balance-chart-box" role="img" aria-label="Balance rolling de entrenamientos por tipo">
+          <div className="balance-bars">
+            {balancePoints.map((point) => {
+              const total = point.leg + point.upper + point.aerobic;
+              return (
+                <div className="balance-bar-column" key={point.date} title={`${point.date}: ${total} entrenamientos`}>
+                  <div className="balance-bar-track">
+                    {point.aerobic ? <span className="balance-bar balance-bar-aerobic" style={{ height: `${(point.aerobic / maxBalanceTotal) * 100}%` }} /> : null}
+                    {point.upper ? <span className="balance-bar balance-bar-upper" style={{ height: `${(point.upper / maxBalanceTotal) * 100}%` }} /> : null}
+                    {point.leg ? <span className="balance-bar balance-bar-leg" style={{ height: `${(point.leg / maxBalanceTotal) * 100}%` }} /> : null}
+                  </div>
+                  <small>{point.label}</small>
+                </div>
+              );
+            })}
+          </div>
+          <div className="balance-legend">
+            <span><i className="legend-leg" />Pierna</span>
+            <span><i className="legend-upper" />Superior</span>
+            <span><i className="legend-aerobic" />Aeróbico</span>
+          </div>
+        </div>
+      </article>
+
       <label className="select-field">
         Ejercicio
         <span>

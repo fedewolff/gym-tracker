@@ -53,7 +53,7 @@ a {
 
 .app {
   min-height: 100vh;
-  padding-bottom: 108px;
+  padding-bottom: 112px;
 }
 
 .loading {
@@ -109,7 +109,7 @@ a {
 .screen {
   margin: 0 auto;
   max-width: 920px;
-  padding: 0 16px 136px;
+  padding: 0 16px 148px;
 }
 
 .flow {
@@ -272,6 +272,7 @@ textarea:focus {
 }
 
 .calendar-scroller {
+  -webkit-overflow-scrolling: touch;
   display: flex;
   gap: 12px;
   overflow-x: auto;
@@ -312,6 +313,7 @@ textarea:focus {
   display: flex;
   justify-content: center;
   min-height: 30px;
+  touch-action: pan-x pan-y;
 }
 
 .calendar-square[data-count="1"] {
@@ -334,6 +336,55 @@ textarea:focus {
 .calendar-square span {
   font-size: 0.68rem;
   font-weight: 800;
+}
+
+.quick-picker {
+  align-items: center;
+  background: #0f1512;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(0, 0.65fr) minmax(0, 1fr);
+  padding: 10px;
+}
+
+.quick-picker span,
+.balance-summary span {
+  color: var(--muted);
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.quick-picker strong {
+  display: block;
+  font-size: 0.9rem;
+  margin-top: 2px;
+}
+
+.quick-picker-actions {
+  display: grid;
+  gap: 6px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.quick-picker-actions button {
+  background: var(--surface);
+  border-radius: 8px;
+  color: var(--ink);
+  cursor: pointer;
+  font-size: 0.74rem;
+  font-weight: 850;
+  min-height: 40px;
+  padding: 8px 6px;
+}
+
+.quick-picker-actions button:last-child {
+  background: var(--green);
+  color: #06140c;
 }
 
 .day-progress {
@@ -470,7 +521,7 @@ textarea:focus {
   display: grid;
   gap: 10px;
   position: sticky;
-  bottom: calc(76px + env(safe-area-inset-bottom));
+  bottom: calc(78px + env(safe-area-inset-bottom));
   z-index: 12;
   padding: 12px;
 }
@@ -543,6 +594,124 @@ textarea:focus {
 .chart-box {
   height: 200px;
   margin-top: 14px;
+}
+
+.balance-summary {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 14px;
+}
+
+.balance-summary div {
+  background: #0f1512;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 3px;
+  padding: 10px;
+}
+
+.balance-summary strong {
+  color: var(--ink);
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
+.balance-summary small {
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.balance-chart-box {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.balance-bars {
+  align-items: end;
+  border-bottom: 1px solid var(--line-strong);
+  border-left: 1px solid var(--line-strong);
+  display: grid;
+  gap: 5px;
+  grid-template-columns: repeat(14, minmax(0, 1fr));
+  height: 168px;
+  padding: 8px 4px 0 8px;
+}
+
+.balance-bar-column {
+  align-items: stretch;
+  display: grid;
+  gap: 5px;
+  grid-template-rows: minmax(0, 1fr) 16px;
+  height: 100%;
+  min-width: 0;
+}
+
+.balance-bar-track {
+  align-items: end;
+  background: #0f1512;
+  border: 1px solid rgba(86, 103, 93, 0.38);
+  border-radius: 999px 999px 4px 4px;
+  display: flex;
+  flex-direction: column;
+  justify-content: end;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.balance-bar {
+  display: block;
+  min-height: 6px;
+  width: 100%;
+}
+
+.balance-bar-leg,
+.legend-leg {
+  background: var(--green);
+}
+
+.balance-bar-upper,
+.legend-upper {
+  background: var(--blue);
+}
+
+.balance-bar-aerobic,
+.legend-aerobic {
+  background: #f4c95d;
+}
+
+.balance-bar-column small {
+  color: var(--muted);
+  font-size: 0.58rem;
+  font-weight: 800;
+  overflow: hidden;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.balance-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+}
+
+.balance-legend span {
+  align-items: center;
+  color: var(--muted-strong);
+  display: inline-flex;
+  font-size: 0.78rem;
+  font-weight: 800;
+  gap: 5px;
+}
+
+.balance-legend i {
+  border-radius: 3px;
+  display: inline-block;
+  height: 10px;
+  width: 14px;
 }
 
 .tooltip {
@@ -618,15 +787,16 @@ textarea:focus {
   background: rgba(14, 19, 16, 0.96);
   backdrop-filter: blur(18px);
   border: 1px solid var(--line);
-  border-radius: 8px;
-  bottom: max(8px, env(safe-area-inset-bottom));
+  border-bottom: 0;
+  border-radius: 8px 8px 0 0;
+  bottom: 0;
   display: grid;
   gap: 2px;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  left: 12px;
-  padding: 5px;
+  left: 0;
+  padding: 5px max(12px, env(safe-area-inset-right)) calc(5px + env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
   position: fixed;
-  right: 12px;
+  right: 0;
   z-index: 20;
 }
 
@@ -675,6 +845,10 @@ textarea:focus {
 
   .chart-box {
     height: 300px;
+  }
+
+  .balance-bars {
+    height: 240px;
   }
 
   .settings-actions {

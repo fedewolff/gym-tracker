@@ -29,6 +29,17 @@ test("records fixed leg plan and monthly upper plan, then charts progress", asyn
     if (previousWindow) element.scrollLeft = previousWindow.offsetLeft;
   });
   await expect(page.getByText("30-59 días atrás")).toBeInViewport();
+  await page.getByTestId("training-calendar-scroller").evaluate((element) => {
+    element.scrollLeft = element.scrollWidth - element.clientWidth;
+  });
+  await expect(page.getByText("Últimos 30")).toBeInViewport();
+  if ((page.viewportSize()?.width ?? 0) < 760) {
+    await page.evaluate(() => window.scrollTo(0, 650));
+    const dock = await page.locator(".tabbar").boundingBox();
+    expect(dock).not.toBeNull();
+    expect(Math.abs((page.viewportSize()?.height ?? 0) - dock!.y - dock!.height)).toBeLessThanOrEqual(2);
+    await page.evaluate(() => window.scrollTo(0, 0));
+  }
 
   await page.getByRole("button", { name: "Sentadilla con barra hecho" }).click();
   await expect(page.getByTestId("day-progress")).toContainText("1 de 6");
@@ -42,9 +53,20 @@ test("records fixed leg plan and monthly upper plan, then charts progress", asyn
   const savedDateSquare = page.locator(`[aria-label^="${savedDate}:"]`);
   await expect(savedDateSquare).toHaveAttribute("data-count", "1");
 
+  const squareBox = await savedDateSquare.boundingBox();
+  expect(squareBox).not.toBeNull();
+  await page.mouse.move(squareBox!.x + squareBox!.width - 4, squareBox!.y + squareBox!.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(squareBox!.x + 4, squareBox!.y + squareBox!.height / 2, { steps: 4 });
+  await page.mouse.up();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(savedDateSquare).toHaveAttribute("data-count", "1");
+
   await savedDateSquare.click();
+  await expect(page.getByRole("dialog", { name: `Registrar entrenamiento ${savedDate}` })).toBeVisible();
+  await page.getByRole("button", { name: "Registrar Aeróbico" }).click();
   await expect(savedDateSquare).toHaveAttribute("data-count", "2");
-  await expect(page.getByRole("status")).toContainText("Entrenamiento rápido guardado");
+  await expect(page.getByRole("status")).toContainText("Aeróbico guardado");
 
   await page.reload();
   await expect(page.getByLabel("Sentadilla con barra serie 1 peso")).toHaveValue("50");
@@ -59,6 +81,10 @@ test("records fixed leg plan and monthly upper plan, then charts progress", asyn
   await page.getByTestId("save-workout").click();
 
   await page.getByRole("button", { name: "Progreso" }).click();
+  await expect(page.getByTestId("training-balance-chart")).toContainText("Últimos 14 días");
+  await expect(page.getByTestId("training-balance-summary")).toContainText("Pierna");
+  await expect(page.getByTestId("training-balance-summary")).toContainText("Superior");
+  await expect(page.getByTestId("training-balance-summary")).toContainText("Aeróbico");
   await page.getByLabel("Ejercicio").selectOption({ label: "Remo T con landmine" });
   await expect(page.getByTestId("progress-chart")).toContainText("Remo T con landmine");
   await expect(page.getByTestId("progress-metric")).toContainText("55");
