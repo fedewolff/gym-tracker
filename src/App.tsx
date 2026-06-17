@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import {
   Check,
-  ChevronDown,
-  Database,
   Download,
   Dumbbell,
   ExternalLink,
@@ -25,14 +23,14 @@ import {
 import { getAvailableMonths, getDefaultMonthId } from "./data/seed";
 import { db, ensureSeeded, exportBackup, importBackup } from "./lib/db";
 import { uid } from "./lib/ids";
-import { calculateProgressPoints, getLatestAnySet, getLatestSetsByNumber } from "./lib/progress";
+import { getLatestAnySet, getLatestSetsByNumber } from "./lib/progress";
 import { buildRollingTrainingBalance, TRAINING_TYPE_LABELS } from "./lib/trainingBalance";
 import {
   buildTrainingWindows,
   MAX_DAILY_TRAINING_COUNT,
   QUICK_SESSION_TEMPLATE_ID,
 } from "./lib/trainingCalendar";
-import { extractWeightNumber, formatWeight } from "./lib/weights";
+import { extractWeightNumber } from "./lib/weights";
 import type { BackupPayload, Exercise, SetEntry, TrainingType, WorkoutSession, WorkoutTemplate, WorkoutTemplateExercise } from "./types";
 
 type View = "train" | "progress" | "exercises" | "settings";
@@ -97,7 +95,6 @@ export default function App() {
   const [workoutKind, setWorkoutKind] = useState<WorkoutKind>("leg");
   const [selectedMonthId, setSelectedMonthId] = useState("");
   const [selectedUpperDay, setSelectedUpperDay] = useState<1 | 2>(1);
-  const [selectedExerciseId, setSelectedExerciseId] = useState("");
   const [data, setData] = useState<AppData>({ exercises: [], templates: [], sessions: [], setEntries: [] });
   const [isReady, setIsReady] = useState(false);
   const [status, setStatus] = useState("");
@@ -118,7 +115,6 @@ export default function App() {
       sessions: sessions.sort((a, b) => b.date.localeCompare(a.date)),
       setEntries,
     });
-    setSelectedExerciseId((current) => current || sortedExercises[0]?.id || "");
     setSelectedMonthId((current) => current || getDefaultMonthId(sortedTemplates));
   }, []);
 
@@ -139,9 +135,8 @@ export default function App() {
     (template) => template.type === "upper" && template.monthId === selectedMonthId && template.upperDay === selectedUpperDay,
   );
   const selectedTemplate = workoutKind === "leg" ? legTemplate : upperTemplate;
-  const selectedExercise = exerciseById.get(selectedExerciseId) ?? data.exercises[0];
 
-  const saveWorkout = async (template: WorkoutTemplate, date: string, painLevel: number | undefined, draft: WorkoutDraft, notes: string) => {
+  const saveWorkout = async (template: WorkoutTemplate, date: string, painLevel: number | undefined, draft: WorkoutDraft) => {
     const sessionId = uid("session");
     const session: WorkoutSession = {
       id: sessionId,
@@ -150,7 +145,6 @@ export default function App() {
       kind: "workout",
       trainingType: template.type,
       painLevel,
-      notes,
       createdAt: new Date().toISOString(),
     };
 
@@ -192,7 +186,6 @@ export default function App() {
       date,
       kind: "quick",
       trainingType,
-      notes: `Registro rapido: ${TRAINING_TYPE_LABELS[trainingType]}`,
       createdAt: new Date().toISOString(),
     });
 
@@ -241,18 +234,13 @@ export default function App() {
             sessions={data.sessions}
             setEntries={data.setEntries}
             onSave={saveWorkout}
-            onQuickTraining={addQuickTraining}
           />
         ) : null}
-        {view === "progress" && selectedExercise ? (
+        {view === "progress" ? (
           <ProgressView
-            exercises={data.exercises}
             templates={data.templates}
-            selectedExercise={selectedExercise}
-            selectedExerciseId={selectedExerciseId}
-            setSelectedExerciseId={setSelectedExerciseId}
             sessions={data.sessions}
-            setEntries={data.setEntries}
+            onQuickTraining={addQuickTraining}
           />
         ) : null}
         {view === "exercises" ? <ExercisesView exercises={data.exercises} sessions={data.sessions} setEntries={data.setEntries} /> : null}
@@ -287,7 +275,6 @@ function TrainView({
   sessions,
   setEntries,
   onSave,
-  onQuickTraining,
 }: {
   template: WorkoutTemplate;
   workoutKind: WorkoutKind;
@@ -300,12 +287,10 @@ function TrainView({
   exerciseById: Map<string, Exercise>;
   sessions: WorkoutSession[];
   setEntries: SetEntry[];
-  onSave: (template: WorkoutTemplate, date: string, painLevel: number | undefined, draft: WorkoutDraft, notes: string) => Promise<void>;
-  onQuickTraining: (date: string, trainingType: TrainingType) => Promise<void>;
+  onSave: (template: WorkoutTemplate, date: string, painLevel: number | undefined, draft: WorkoutDraft) => Promise<void>;
 }) {
   const [date, setDate] = useState(todayIso);
   const [painLevel, setPainLevel] = useState("0");
-  const [notes, setNotes] = useState("");
   const [draft, setDraft] = useState<WorkoutDraft>({});
   const [completedExerciseKeys, setCompletedExerciseKeys] = useState<Set<string>>(new Set());
   const [isSaving, setIsSaving] = useState(false);
@@ -365,7 +350,7 @@ function TrainView({
 
   const handleSave = async () => {
     setIsSaving(true);
-    await onSave(template, date, Number(painLevel), draft, notes);
+    await onSave(template, date, Number(painLevel), draft);
     setCompletedExerciseKeys(new Set(template.exercises.map(exerciseProgressKey)));
     setIsSaving(false);
   };
@@ -433,13 +418,6 @@ function TrainView({
           </div>
         ) : null}
       </div>
-
-      <TrainingCalendar
-        sessions={sessions}
-        selectedDate={date}
-        onDateChange={setDate}
-        onQuickTraining={onQuickTraining}
-      />
 
       {Number(painLevel) > 3 ? <div className="pain-warning">Dolor mayor a 3 registrado</div> : null}
 
@@ -528,7 +506,6 @@ function TrainView({
       </div>
 
       <div className="save-strip">
-        <textarea value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Notas" rows={2} />
         <button type="button" onClick={handleSave} disabled={isSaving} data-testid="save-workout">
           {isSaving ? "Guardando" : "Guardar"}
         </button>
@@ -664,27 +641,33 @@ function TrainingCalendar({
 }
 
 function ProgressView({
-  exercises,
   templates,
-  selectedExercise,
-  selectedExerciseId,
-  setSelectedExerciseId,
   sessions,
-  setEntries,
+  onQuickTraining,
 }: {
-  exercises: Exercise[];
   templates: WorkoutTemplate[];
-  selectedExercise: Exercise;
-  selectedExerciseId: string;
-  setSelectedExerciseId: (id: string) => void;
   sessions: WorkoutSession[];
-  setEntries: SetEntry[];
+  onQuickTraining: (date: string, trainingType: TrainingType) => Promise<void>;
 }) {
-  const points = useMemo(() => calculateProgressPoints(selectedExercise.id, sessions, setEntries), [selectedExercise.id, sessions, setEntries]);
+  const [calendarDate, setCalendarDate] = useState(todayIso);
+  const balanceScrollerRef = useRef<HTMLDivElement>(null);
+  const didPositionBalance = useRef(false);
   const balancePoints = useMemo(() => buildRollingTrainingBalance(sessions, templates, todayIso()), [sessions, templates]);
   const currentBalance = balancePoints[balancePoints.length - 1];
-  const maxBalanceTotal = Math.max(1, ...balancePoints.map((point) => point.leg + point.upper + point.aerobic));
-  const latest = points[points.length - 1];
+  const balanceChartWidth = Math.max(860, balancePoints.length * 18);
+  const weeklyAverage = (value: number | undefined) => `${(value ?? 0).toFixed(1)}/sem`;
+
+  useEffect(() => {
+    const scroller = balanceScrollerRef.current;
+    if (!scroller || didPositionBalance.current) return;
+
+    const frame = window.requestAnimationFrame(() => {
+      scroller.scrollLeft = scroller.scrollWidth - scroller.clientWidth;
+      didPositionBalance.current = true;
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [balancePoints.length]);
 
   return (
     <section className="flow">
@@ -701,105 +684,67 @@ function ProgressView({
           <div>
             <span>Pierna</span>
             <strong>{currentBalance?.leg ?? 0}</strong>
-            <small>{((currentBalance?.legAverage ?? 0) * 100).toFixed(0)}%</small>
+            <small>{weeklyAverage(currentBalance?.legWeeklyAverage)}</small>
           </div>
           <div>
             <span>Superior</span>
             <strong>{currentBalance?.upper ?? 0}</strong>
-            <small>{((currentBalance?.upperAverage ?? 0) * 100).toFixed(0)}%</small>
+            <small>{weeklyAverage(currentBalance?.upperWeeklyAverage)}</small>
           </div>
           <div>
             <span>Aeróbico</span>
             <strong>{currentBalance?.aerobic ?? 0}</strong>
-            <small>{((currentBalance?.aerobicAverage ?? 0) * 100).toFixed(0)}%</small>
+            <small>{weeklyAverage(currentBalance?.aerobicWeeklyAverage)}</small>
           </div>
         </div>
 
-        <div className="balance-chart-box" role="img" aria-label="Balance rolling de entrenamientos por tipo">
-          <div className="balance-bars">
-            {balancePoints.map((point) => {
-              const total = point.leg + point.upper + point.aerobic;
-              return (
-                <div className="balance-bar-column" key={point.date} title={`${point.date}: ${total} entrenamientos`}>
-                  <div className="balance-bar-track">
-                    {point.aerobic ? <span className="balance-bar balance-bar-aerobic" style={{ height: `${(point.aerobic / maxBalanceTotal) * 100}%` }} /> : null}
-                    {point.upper ? <span className="balance-bar balance-bar-upper" style={{ height: `${(point.upper / maxBalanceTotal) * 100}%` }} /> : null}
-                    {point.leg ? <span className="balance-bar balance-bar-leg" style={{ height: `${(point.leg / maxBalanceTotal) * 100}%` }} /> : null}
-                  </div>
-                  <small>{point.label}</small>
-                </div>
-              );
-            })}
-          </div>
-          <div className="balance-legend">
-            <span><i className="legend-leg" />Pierna</span>
-            <span><i className="legend-upper" />Superior</span>
-            <span><i className="legend-aerobic" />Aeróbico</span>
-          </div>
-        </div>
-      </article>
-
-      <label className="select-field">
-        Ejercicio
-        <span>
-          <select value={selectedExerciseId} onChange={(event) => setSelectedExerciseId(event.target.value)}>
-            {exercises.map((exercise) => (
-              <option key={exercise.id} value={exercise.id}>
-                {exercise.name}
-              </option>
-            ))}
-          </select>
-          <ChevronDown size={16} />
-        </span>
-      </label>
-
-      <article className="chart-panel" data-testid="progress-chart">
-        <div className="chart-head">
-          <div>
-            <span>{selectedExercise.group}</span>
-            <h2>{selectedExercise.name}</h2>
-          </div>
-          <strong data-testid="progress-metric">{latest ? formatWeight(latest.bestWeight) : "-"}</strong>
-        </div>
-
-        {points.length ? (
-          <div className="chart-box">
+        <div
+          ref={balanceScrollerRef}
+          className="balance-line-scroller"
+          data-testid="training-balance-line-scroller"
+          aria-label="Historial de balance rolling de 14 días"
+        >
+          <div className="balance-line-inner" style={{ width: `${balanceChartWidth}px` }}>
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={points} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+              <LineChart data={balancePoints} margin={{ top: 14, right: 16, left: -14, bottom: 0 }}>
                 <CartesianGrid stroke="#2f3a34" vertical={false} />
-                <XAxis dataKey="date" tick={{ fontSize: 11 }} minTickGap={16} />
-                <YAxis tick={{ fontSize: 11 }} width={36} domain={["dataMin - 2", "dataMax + 2"]} />
+                <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#9fa99f" }} minTickGap={18} />
+                <YAxis tick={{ fontSize: 10, fill: "#9fa99f" }} allowDecimals={false} width={34} domain={[0, "dataMax + 1"]} />
                 <Tooltip
                   content={({ active, payload }) => {
                     if (!active || !payload?.length) return null;
-                    const point = payload[0].payload as (typeof points)[number];
+                    const point = payload[0].payload as (typeof balancePoints)[number];
                     return (
                       <div className="tooltip">
                         <b>{point.date}</b>
-                        <span>{point.weightLabel}</span>
-                        <span>{point.repsLabel} reps</span>
+                        <span>Pierna: {point.leg}</span>
+                        <span>Superior: {point.upper}</span>
+                        <span>Aeróbico: {point.aerobic}</span>
                       </div>
                     );
                   }}
                 />
-                <Line dataKey="bestWeight" type="monotone" stroke="#3ee58f" strokeWidth={2.5} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                <Line dataKey="leg" name="Pierna" type="monotone" stroke="#3ee58f" strokeWidth={2.5} dot={false} activeDot={{ r: 5 }} />
+                <Line dataKey="upper" name="Superior" type="monotone" stroke="#7bb4ff" strokeWidth={2.5} dot={false} activeDot={{ r: 5 }} />
+                <Line dataKey="aerobic" name="Aeróbico" type="monotone" stroke="#f4c95d" strokeWidth={2.5} dot={false} activeDot={{ r: 5 }} />
               </LineChart>
             </ResponsiveContainer>
           </div>
-        ) : (
-          <div className="empty">Sin registros numéricos todavía</div>
-        )}
+        </div>
+
+        <div className="balance-legend">
+          <span><i className="legend-leg" />Pierna</span>
+          <span><i className="legend-upper" />Superior</span>
+          <span><i className="legend-aerobic" />Aeróbico</span>
+        </div>
       </article>
 
-      <div className="history">
-        {points.slice().reverse().map((point) => (
-          <div key={point.sessionId}>
-            <span>{point.date}</span>
-            <b>{point.weightLabel}</b>
-            <small>{point.repsLabel} reps</small>
-          </div>
-        ))}
-      </div>
+      <TrainingCalendar
+        sessions={sessions}
+        selectedDate={calendarDate}
+        onDateChange={setCalendarDate}
+        onQuickTraining={onQuickTraining}
+      />
     </section>
   );
 }

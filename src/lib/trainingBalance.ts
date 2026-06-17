@@ -13,9 +13,9 @@ export interface TrainingBalancePoint {
   leg: number;
   upper: number;
   aerobic: number;
-  legAverage: number;
-  upperAverage: number;
-  aerobicAverage: number;
+  legWeeklyAverage: number;
+  upperWeeklyAverage: number;
+  aerobicWeeklyAverage: number;
 }
 
 const TRAINING_TYPES: TrainingType[] = ["leg", "upper", "aerobic"];
@@ -81,10 +81,11 @@ export function buildRollingTrainingBalance(
   sessions: WorkoutSession[],
   templates: WorkoutTemplate[],
   anchorDate: string,
-  pointCount = 14,
+  pointCount = 180,
   windowDays = 14,
 ): TrainingBalancePoint[] {
   const anchor = dateFromIso(anchorDate);
+  const weekCount = windowDays / 7;
 
   return Array.from({ length: pointCount }, (_, index) => {
     const end = shiftDate(anchor, index - pointCount + 1);
@@ -97,9 +98,9 @@ export function buildRollingTrainingBalance(
       leg: counts.leg,
       upper: counts.upper,
       aerobic: counts.aerobic,
-      legAverage: counts.leg / windowDays,
-      upperAverage: counts.upper / windowDays,
-      aerobicAverage: counts.aerobic / windowDays,
+      legWeeklyAverage: counts.leg / weekCount,
+      upperWeeklyAverage: counts.upper / weekCount,
+      aerobicWeeklyAverage: counts.aerobic / weekCount,
     };
   });
 }

@@ -36,11 +36,9 @@ export async function ensureSeeded(): Promise<void> {
 
   const seed = buildSeedData();
 
-  await db.transaction("rw", db.exercises, db.templates, db.sessions, db.setEntries, db.meta, async () => {
+  await db.transaction("rw", db.exercises, db.templates, db.meta, async () => {
     await db.exercises.clear();
     await db.templates.clear();
-    await db.sessions.clear();
-    await db.setEntries.clear();
     await db.meta.clear();
     await db.exercises.bulkPut(seed.exercises);
     await db.templates.bulkPut(seed.templates);

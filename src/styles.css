@@ -109,12 +109,17 @@ a {
 .screen {
   margin: 0 auto;
   max-width: 920px;
+  min-width: 0;
   padding: 0 16px 148px;
+  width: 100%;
 }
 
 .flow {
   display: grid;
   gap: 14px;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+  width: 100%;
 }
 
 .status,
@@ -572,7 +577,11 @@ textarea:focus {
 }
 
 .chart-panel {
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
   padding: 14px;
+  width: 100%;
 }
 
 .chart-head {
@@ -589,11 +598,6 @@ textarea:focus {
   min-width: 64px;
   padding: 9px 12px;
   text-align: center;
-}
-
-.chart-box {
-  height: 200px;
-  margin-top: 14px;
 }
 
 .balance-summary {
@@ -623,72 +627,34 @@ textarea:focus {
   font-weight: 800;
 }
 
-.balance-chart-box {
-  display: grid;
-  gap: 10px;
-  margin-top: 14px;
-}
-
-.balance-bars {
-  align-items: end;
-  border-bottom: 1px solid var(--line-strong);
-  border-left: 1px solid var(--line-strong);
-  display: grid;
-  gap: 5px;
-  grid-template-columns: repeat(14, minmax(0, 1fr));
-  height: 168px;
-  padding: 8px 4px 0 8px;
-}
-
-.balance-bar-column {
-  align-items: stretch;
-  display: grid;
-  gap: 5px;
-  grid-template-rows: minmax(0, 1fr) 16px;
-  height: 100%;
-  min-width: 0;
-}
-
-.balance-bar-track {
-  align-items: end;
-  background: #0f1512;
-  border: 1px solid rgba(86, 103, 93, 0.38);
-  border-radius: 999px 999px 4px 4px;
-  display: flex;
-  flex-direction: column;
-  justify-content: end;
-  min-height: 0;
-  overflow: hidden;
-}
-
-.balance-bar {
-  display: block;
-  min-height: 6px;
-  width: 100%;
-}
-
-.balance-bar-leg,
 .legend-leg {
   background: var(--green);
 }
 
-.balance-bar-upper,
 .legend-upper {
   background: var(--blue);
 }
 
-.balance-bar-aerobic,
 .legend-aerobic {
   background: #f4c95d;
 }
 
-.balance-bar-column small {
-  color: var(--muted);
-  font-size: 0.58rem;
-  font-weight: 800;
-  overflow: hidden;
-  text-align: center;
-  white-space: nowrap;
+.balance-line-scroller {
+  -webkit-overflow-scrolling: touch;
+  margin-top: 14px;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  padding-bottom: 4px;
+  scrollbar-color: var(--line-strong) transparent;
+  width: 100%;
+}
+
+.balance-line-inner {
+  flex: 0 0 auto;
+  height: 260px;
+  min-width: 100%;
 }
 
 .balance-legend {
@@ -839,16 +805,12 @@ textarea:focus {
 
   .save-strip {
     align-items: end;
-    grid-template-columns: minmax(0, 1fr) 160px;
+    grid-template-columns: minmax(0, 1fr);
     position: static;
   }
 
-  .chart-box {
-    height: 300px;
-  }
-
-  .balance-bars {
-    height: 240px;
+  .balance-line-inner {
+    height: 320px;
   }
 
   .settings-actions {

@@ -61,6 +61,14 @@ describe("training balance", () => {
     expect(points.map((point) => point.date)).toEqual(["2026-06-16", "2026-06-17"]);
     expect(points[0]).toMatchObject({ leg: 1, upper: 1, aerobic: 0 });
     expect(points[1]).toMatchObject({ leg: 1, upper: 0, aerobic: 1 });
-    expect(points[1].legAverage).toBeCloseTo(1 / 14);
+    expect(points[1].legWeeklyAverage).toBeCloseTo(0.5);
+  });
+
+  it("can build longer historical rolling series", () => {
+    const points = buildRollingTrainingBalance([], templates, "2026-06-17", 90, 14);
+
+    expect(points).toHaveLength(90);
+    expect(points[0].date).toBe("2026-03-20");
+    expect(points[89].date).toBe("2026-06-17");
   });
 });
