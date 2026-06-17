@@ -1,0 +1,63 @@
+import type { Exercise, WorkoutTemplate } from "../types";
+import { PDF_PLAN_TEXT, UPPER_MONTH_ROWS } from "./sourceData";
+import {
+  buildCurrentLegExercises,
+  buildWorkoutTemplates,
+  parseExcelUpperRows,
+} from "./parsers";
+
+export const SEED_VERSION = "2026-06-17-v2-reset";
+
+export interface SeedData {
+  exercises: Exercise[];
+  templates: WorkoutTemplate[];
+}
+
+function dedupeExercises(exercises: Exercise[]): Exercise[] {
+  const byId = new Map<string, Exercise>();
+  for (const exercise of exercises) {
+    const existing = byId.get(exercise.id);
+    if (!existing) {
+      byId.set(exercise.id, exercise);
+      continue;
+    }
+
+    byId.set(exercise.id, {
+      ...existing,
+      ...exercise,
+      source: existing.source === "pdf-current" ? existing.source : exercise.source,
+      activeInRoutine: existing.activeInRoutine || exercise.activeInRoutine,
+      videoUrl: existing.videoUrl ?? exercise.videoUrl,
+      notes: [existing.notes, exercise.notes].filter(Boolean).join(" | ") || undefined,
+    });
+  }
+  return Array.from(byId.values());
+}
+
+export function buildSeedData(): SeedData {
+  const legExercises = buildCurrentLegExercises(PDF_PLAN_TEXT);
+  const upperExercises = parseExcelUpperRows(UPPER_MONTH_ROWS);
+
+  const exercises = dedupeExercises([...legExercises, ...upperExercises]);
+  const templates = buildWorkoutTemplates(legExercises, UPPER_MONTH_ROWS);
+
+  return {
+    exercises,
+    templates,
+  };
+}
+
+export function getAvailableMonths(templates: WorkoutTemplate[]): Array<{ id: string; label: string }> {
+  const seen = new Map<string, string>();
+  for (const template of templates) {
+    if (template.monthId && template.monthLabel) seen.set(template.monthId, template.monthLabel);
+  }
+  return Array.from(seen, ([id, label]) => ({ id, label }));
+}
+
+export function getDefaultMonthId(templates: WorkoutTemplate[], now = new Date()): string {
+  const months = getAvailableMonths(templates);
+  const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+  const currentLabel = `${monthNames[now.getMonth()]} ${now.getFullYear()}`;
+  return months.find((month) => month.label === currentLabel)?.id ?? months[months.length - 1]?.id ?? "";
+}
