@@ -1,7 +1,9 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="104" fill="#172554"/>
-  <path d="M123 299h266v42H123z" fill="#f8fafc"/>
-  <path d="M89 242h52v156H89zm282 0h52v156h-52z" fill="#38bdf8"/>
-  <path d="M172 191h168v42H172z" fill="#f8fafc"/>
-  <path d="M207 122h98v42h-98z" fill="#22c55e"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Gym Fede">
+  <rect width="512" height="512" rx="104" fill="#3ee58f"/>
+  <circle cx="256" cy="256" r="176" fill="#07130d"/>
+  <path
+    d="M277 130c-78 0-132 54-132 127 0 74 54 126 131 126 56 0 101-26 120-72v-77H266v68h54c-12 20-31 30-56 30-42 0-69-31-69-75 0-45 28-76 72-76 25 0 47 10 61 29l48-45c-23-23-58-35-99-35Z"
+    fill="#f5f7f2"
+  />
+  <path d="M338 259h58v52h-58z" fill="#3ee58f"/>
 </svg>
