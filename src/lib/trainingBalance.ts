@@ -1,4 +1,5 @@
 import type { SetEntry, TrainingType, WorkoutSession, WorkoutTemplate } from "../types";
+import { isMobilitySession } from "./mobility";
 import { isManualUncheckSession, isQuickSession } from "./trainingCalendar";
 
 export const TRAINING_TYPE_LABELS: Record<TrainingType, string> = {
@@ -76,6 +77,7 @@ export function resolveTrainingType(
   session: WorkoutSession,
   templates: WorkoutTemplate[],
 ): TrainingType {
+  if (isMobilitySession(session)) return "aerobic";
   if (session.trainingType) return session.trainingType;
   if (isQuickSession(session)) return "aerobic";
 
@@ -106,6 +108,7 @@ export function countTrainingDaysByType(
 
   for (const session of sessions) {
     if (session.date < start || session.date > end) continue;
+    if (isMobilitySession(session)) continue;
     const type = resolveTrainingType(session, templates);
     if (isManualUncheckSession(session)) {
       uncheckedDaysByType[type].add(session.date);
@@ -181,6 +184,7 @@ export function buildTrainingHeatmap(
   const uncheckedKeys = new Set<string>();
   for (const session of sessions) {
     if (!daySet.has(session.date)) continue;
+    if (isMobilitySession(session)) continue;
     const type = resolveTrainingType(session, templates);
     const key = `${type}:${session.date}`;
     if (isManualUncheckSession(session)) {

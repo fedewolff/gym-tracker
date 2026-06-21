@@ -14,6 +14,7 @@ import {
 import { getAvailableMonths, getDefaultMonthId } from "./data/seed";
 import { db, ensureSeeded, exportBackup, importBackup } from "./lib/db";
 import { uid } from "./lib/ids";
+import { buildMobilityHeatmap, isMobilitySession, MOBILITY_BLOCKS, MOBILITY_SLOT_LABELS, MOBILITY_TEMPLATE_ID } from "./lib/mobility";
 import { getLatestAnySet, getLatestSetsByNumber } from "./lib/progress";
 import { buildTrainingHeatmap, TRAINING_TYPE_LABELS, resolveTrainingType } from "./lib/trainingBalance";
 import {
@@ -23,10 +24,10 @@ import {
   isQuickSession,
 } from "./lib/trainingCalendar";
 import { extractWeightNumber } from "./lib/weights";
-import type { BackupPayload, Exercise, SetEntry, TrainingType, WorkoutSession, WorkoutTemplate, WorkoutTemplateExercise } from "./types";
+import type { BackupPayload, Exercise, MobilitySlot, SetEntry, TrainingType, WorkoutSession, WorkoutTemplate, WorkoutTemplateExercise } from "./types";
 
 type View = "train" | "progress" | "exercises" | "settings";
-type WorkoutKind = "leg" | "upper";
+type WorkoutKind = "leg" | "upper" | "mobility";
 
 interface AppData {
   exercises: Exercise[];
@@ -163,7 +164,9 @@ export default function App() {
   };
 
   const toggleHeatmapTraining = async (date: string, trainingType: TrainingType) => {
-    const matchingSessions = data.sessions.filter((session) => session.date === date && resolveTrainingType(session, data.templates) === trainingType);
+    const matchingSessions = data.sessions.filter(
+      (session) => !isMobilitySession(session) && session.date === date && resolveTrainingType(session, data.templates) === trainingType,
+    );
     const uncheckSessions = matchingSessions.filter(isManualUncheckSession);
     const quickSessions = matchingSessions.filter((session) => isQuickSession(session) && !isManualUncheckSession(session));
     const workoutSessions = matchingSessions.filter((session) => !isQuickSession(session) && !isManualUncheckSession(session));
@@ -222,6 +225,32 @@ export default function App() {
     setStatus(`${TRAINING_TYPE_LABELS[trainingType]} ${actionLabel}`);
   };
 
+  const toggleMobility = async (date: string, mobilitySlot: MobilitySlot) => {
+    const matchingSessions = data.sessions.filter((session) => isMobilitySession(session) && session.date === date && session.mobilitySlot === mobilitySlot);
+    const matchingIds = matchingSessions.map((session) => session.id);
+    let actionLabel = "marcada";
+
+    await db.transaction("rw", db.sessions, async () => {
+      if (matchingIds.length) {
+        actionLabel = "desmarcada";
+        await db.sessions.bulkDelete(matchingIds);
+        return;
+      }
+
+      await db.sessions.put({
+        id: uid("session"),
+        templateId: MOBILITY_TEMPLATE_ID,
+        date,
+        kind: "mobility",
+        mobilitySlot,
+        createdAt: new Date().toISOString(),
+      });
+    });
+
+    await loadData();
+    setStatus(`${MOBILITY_SLOT_LABELS[mobilitySlot]} ${actionLabel}`);
+  };
+
   if (!isReady) {
     return (
       <main className="loading">
@@ -249,7 +278,15 @@ export default function App() {
       ) : null}
 
       <main className="screen">
-        {view === "train" && selectedTemplate ? (
+        {view === "train" && workoutKind === "mobility" ? (
+          <MobilityView
+            workoutKind={workoutKind}
+            setWorkoutKind={setWorkoutKind}
+            sessions={data.sessions}
+            onToggleMobility={toggleMobility}
+          />
+        ) : null}
+        {view === "train" && workoutKind !== "mobility" && selectedTemplate ? (
           <TrainView
             template={selectedTemplate}
             workoutKind={workoutKind}
@@ -271,6 +308,7 @@ export default function App() {
             sessions={data.sessions}
             setEntries={data.setEntries}
             onToggleTraining={toggleHeatmapTraining}
+            onToggleMobility={toggleMobility}
           />
         ) : null}
         {view === "exercises" ? <ExercisesView exercises={data.exercises} sessions={data.sessions} setEntries={data.setEntries} /> : null}
@@ -413,6 +451,9 @@ function TrainView({
           <button type="button" className={workoutKind === "upper" ? "selected" : ""} onClick={() => setWorkoutKind("upper")}>
             Superior
           </button>
+          <button type="button" className={workoutKind === "mobility" ? "selected" : ""} onClick={() => setWorkoutKind("mobility")}>
+            Movilidad
+          </button>
         </div>
 
         <div className="control-row">
@@ -544,21 +585,115 @@ function TrainView({
   );
 }
 
+function MobilityView({
+  workoutKind,
+  setWorkoutKind,
+  sessions,
+  onToggleMobility,
+}: {
+  workoutKind: WorkoutKind;
+  setWorkoutKind: (kind: WorkoutKind) => void;
+  sessions: WorkoutSession[];
+  onToggleMobility: (date: string, mobilitySlot: MobilitySlot) => Promise<void>;
+}) {
+  const [date, setDate] = useState(todayIso);
+  const completedSlots = useMemo(
+    () => new Set(sessions.filter((session) => isMobilitySession(session) && session.date === date).map((session) => session.mobilitySlot).filter(Boolean)),
+    [date, sessions],
+  );
+  const completedCount = completedSlots.size;
+  const progressPercent = Math.round((completedCount / MOBILITY_BLOCKS.length) * 100);
+
+  return (
+    <section className="flow">
+      <div className="train-controls">
+        <div className="segmented" aria-label="Tipo de rutina">
+          <button type="button" className={workoutKind === "leg" ? "selected" : ""} onClick={() => setWorkoutKind("leg")}>
+            Pierna
+          </button>
+          <button type="button" className={workoutKind === "upper" ? "selected" : ""} onClick={() => setWorkoutKind("upper")}>
+            Superior
+          </button>
+          <button type="button" className={workoutKind === "mobility" ? "selected" : ""} onClick={() => setWorkoutKind("mobility")}>
+            Movilidad
+          </button>
+        </div>
+
+        <label>
+          Fecha
+          <input type="date" value={date} onChange={(event) => setDate(event.target.value)} />
+        </label>
+      </div>
+
+      <div className="routine-title">
+        <span>Trabajo sentado</span>
+        <h2>Movilidad diaria</h2>
+      </div>
+
+      <div className="day-progress" data-testid="mobility-progress">
+        <div>
+          <span>{completedCount} de {MOBILITY_BLOCKS.length}</span>
+          <strong>{completedCount === MOBILITY_BLOCKS.length ? "Completo" : `${MOBILITY_BLOCKS.length - completedCount} quedan`}</strong>
+        </div>
+        <div className="progress-track" aria-hidden="true">
+          <span style={{ width: `${progressPercent}%` }} />
+        </div>
+      </div>
+
+      <div className="mobility-list">
+        {MOBILITY_BLOCKS.map((block) => {
+          const isComplete = completedSlots.has(block.slot);
+          return (
+            <article className={mergeClass("exercise-row", "mobility-row", isComplete && "exercise-row-complete")} key={block.slot}>
+              <div className="exercise-summary">
+                <div>
+                  <span>{block.duration}</span>
+                  <h3>{block.label}</h3>
+                  <p>{block.objective}</p>
+                </div>
+                <button
+                  type="button"
+                  className={mergeClass("mobility-check", isComplete && "complete-button-active")}
+                  onClick={() => onToggleMobility(date, block.slot)}
+                  aria-label={`${block.label} movilidad ${isComplete ? "hecha" : "pendiente"}`}
+                  aria-pressed={isComplete}
+                >
+                  <Check size={17} />
+                </button>
+              </div>
+              <ol className="mobility-exercises">
+                {block.exercises.map((exercise) => (
+                  <li key={exercise}>{exercise}</li>
+                ))}
+              </ol>
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 function ProgressView({
   templates,
   sessions,
   setEntries,
   onToggleTraining,
+  onToggleMobility,
 }: {
   templates: WorkoutTemplate[];
   sessions: WorkoutSession[];
   setEntries: SetEntry[];
   onToggleTraining: (date: string, trainingType: TrainingType) => Promise<void>;
+  onToggleMobility: (date: string, mobilitySlot: MobilitySlot) => Promise<void>;
 }) {
   const [calendarAnchorDate] = useState(todayIso);
   const heatmapScrollerRef = useRef<HTMLDivElement>(null);
+  const mobilityScrollerRef = useRef<HTMLDivElement>(null);
   const didPositionHeatmap = useRef(false);
+  const didPositionMobility = useRef(false);
   const heatmap = useMemo(() => buildTrainingHeatmap(sessions, templates, setEntries, calendarAnchorDate), [calendarAnchorDate, sessions, setEntries, templates]);
+  const mobilityHeatmap = useMemo(() => buildMobilityHeatmap(sessions, calendarAnchorDate), [calendarAnchorDate, sessions]);
 
   useLayoutEffect(() => {
     const scroller = heatmapScrollerRef.current;
@@ -572,6 +707,19 @@ function ProgressView({
 
     return () => window.cancelAnimationFrame(frame);
   }, [heatmap.days.length]);
+
+  useLayoutEffect(() => {
+    const scroller = mobilityScrollerRef.current;
+    if (!scroller || didPositionMobility.current) return;
+
+    scroller.scrollLeft = scroller.scrollWidth - scroller.clientWidth;
+    const frame = window.requestAnimationFrame(() => {
+      scroller.scrollLeft = scroller.scrollWidth - scroller.clientWidth;
+      didPositionMobility.current = true;
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [mobilityHeatmap.days.length]);
 
   return (
     <section className="flow">
@@ -631,6 +779,71 @@ function ProgressView({
                     aria-label={`${row.label} ${cell.date}${cell.trained ? " entrenado" : " descanso"}`}
                   >
                     {cell.trained ? <Check size={13} strokeWidth={3} /> : null}
+                  </button>
+                ))}
+                <div className="heatmap-total">{row.totalDays}</div>
+              </Fragment>
+            ))}
+          </div>
+        </div>
+      </article>
+
+      <article className="chart-panel" data-testid="mobility-balance-chart">
+        <div className="chart-head">
+          <div>
+            <span>Movilidad</span>
+            <h2>Últimos 14 días</h2>
+          </div>
+          <strong>{mobilityHeatmap.summary.totalBlocks}</strong>
+        </div>
+
+        <div className="heatmap-summary" data-testid="mobility-balance-summary">
+          <div>
+            <span>Total</span>
+            <strong>{mobilityHeatmap.summary.totalBlocks}</strong>
+            <small>bloques</small>
+          </div>
+          <div>
+            <span>Más cumplido</span>
+            <strong>{mobilityHeatmap.summary.mostDone}</strong>
+            <small>bloque</small>
+          </div>
+          <div>
+            <span>Menos cumplido</span>
+            <strong>{mobilityHeatmap.summary.leastDone}</strong>
+            <small>bloque</small>
+          </div>
+          <div>
+            <span>Desbalance</span>
+            <strong>{mobilityHeatmap.summary.imbalance}</strong>
+            <small>14 días</small>
+          </div>
+        </div>
+
+        <div ref={mobilityScrollerRef} className="heatmap-scroller" data-testid="mobility-heatmap" aria-label="Heatmap de movilidad últimos 14 días">
+          <div className="heatmap-grid">
+            <div className="heatmap-label heatmap-head">Bloque</div>
+            {mobilityHeatmap.days.map((day) => (
+              <div className="heatmap-day-head" key={day.date}>
+                <span>{day.weekday}</span>
+                <strong>{day.label}</strong>
+              </div>
+            ))}
+            <div className="heatmap-total-head">Últimos 14 días</div>
+
+            {mobilityHeatmap.rows.map((row) => (
+              <Fragment key={row.slot}>
+                <div className="heatmap-label">{row.label}</div>
+                {row.cells.map((cell) => (
+                  <button
+                    type="button"
+                    key={`${row.slot}-${cell.date}`}
+                    className={`heatmap-cell ${cell.completed ? "heatmap-level-4" : "heatmap-level-0"}`}
+                    onClick={() => onToggleMobility(cell.date, row.slot)}
+                    title={`${row.label} ${cell.date}`}
+                    aria-label={`${row.label} ${cell.date} ${cell.completed ? "hecha" : "pendiente"}`}
+                  >
+                    {cell.completed ? <Check size={13} strokeWidth={3} /> : null}
                   </button>
                 ))}
                 <div className="heatmap-total">{row.totalDays}</div>

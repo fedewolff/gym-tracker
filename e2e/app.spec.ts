@@ -33,7 +33,7 @@ test("records fixed leg plan and monthly upper plan, then charts progress", asyn
   await expect(page.getByTestId("training-balance-summary")).toContainText("Aeróbico");
   await expect(page.getByTestId("training-balance-summary")).toContainText("Desbalance");
   await expect(page.getByTestId("training-heatmap")).toContainText("Últimos 14 días");
-  await expect(page.locator(".heatmap-day-head")).toHaveCount(14);
+  await expect(page.getByTestId("training-heatmap").locator(".heatmap-day-head")).toHaveCount(14);
   await expect(page.locator(".heatmap-total").first()).toContainText("1");
   await expect(page.locator(".heatmap-cell.heatmap-level-4").first()).toBeVisible();
   if ((page.viewportSize()?.width ?? 0) < 760) {
@@ -75,6 +75,19 @@ test("records fixed leg plan and monthly upper plan, then charts progress", asyn
   await expect(page.getByLabel("Sentadilla con barra serie 1 peso")).toHaveValue("50");
   await expect(page.getByLabel("Sentadilla con barra serie 1 reps")).toHaveValue("6");
 
+  await page.getByRole("button", { name: "Movilidad" }).click();
+  await expect(page.getByRole("heading", { name: "Movilidad diaria" })).toBeVisible();
+  await expect(page.getByText("Movilidad de tobillo contra pared")).toBeVisible();
+  await expect(page.getByText("Pararse y caminar")).toBeVisible();
+  await page.getByRole("button", { name: "Mañana movilidad pendiente" }).click();
+  await expect(page.getByRole("status")).toContainText("Mañana marcada");
+  await expect(page.getByTestId("mobility-progress")).toContainText("1 de 4");
+  await page.getByRole("button", { name: "Mañana movilidad hecha" }).click();
+  await expect(page.getByRole("status")).toContainText("Mañana desmarcada");
+  await expect(page.getByTestId("mobility-progress")).toContainText("0 de 4");
+  await page.getByRole("button", { name: "Mañana movilidad pendiente" }).click();
+  await expect(page.getByRole("status")).toContainText("Mañana marcada");
+
   await page.getByRole("button", { name: "Superior" }).click();
   await page.getByLabel("Mes").selectOption({ label: "Mayo 2026" });
   await page.getByLabel("Día").selectOption("2");
@@ -88,6 +101,16 @@ test("records fixed leg plan and monthly upper plan, then charts progress", asyn
   await expect(page.getByTestId("training-balance-summary")).toContainText("Desbalance");
   await expect(page.locator(".heatmap-total").first()).toContainText("1");
   await expect(page.locator(".heatmap-total").nth(1)).toContainText("1");
+  await expect(page.getByTestId("mobility-balance-chart")).toContainText("Movilidad");
+  await expect(page.getByTestId("mobility-balance-chart")).toContainText("1");
+  await expect(page.getByTestId("mobility-heatmap")).toContainText("Mañana");
+  await expect(page.getByLabel(`Mañana ${savedDate} hecha`)).toBeVisible();
+  await page.getByLabel(`Mediodía ${savedDate} pendiente`).click();
+  await expect(page.getByRole("status")).toContainText("Mediodía marcada");
+  await expect(page.getByLabel(`Mediodía ${savedDate} hecha`)).toBeVisible();
+  await page.getByLabel(`Mediodía ${savedDate} hecha`).click();
+  await expect(page.getByRole("status")).toContainText("Mediodía desmarcada");
+  await expect(page.getByLabel(`Mediodía ${savedDate} pendiente`)).toBeVisible();
   await expect(page.getByLabel("Ejercicio")).toHaveCount(0);
   await expect(page.getByTestId("progress-chart")).toHaveCount(0);
 

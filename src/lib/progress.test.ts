@@ -47,6 +47,18 @@ describe("progress helpers", () => {
     expect(days.find((day) => day.date === "2026-06-08")?.count).toBe(2);
   });
 
+  it("does not count mobility sessions in the training calendar", () => {
+    const days = buildTrainingDays(
+      [
+        { id: "m1", templateId: "template-mobility", date: "2026-06-08", createdAt: "2026-06-08T08:00:00.000Z", kind: "mobility", mobilitySlot: "morning" },
+      ],
+      "2026-06-08",
+      1,
+    );
+
+    expect(days[0].count).toBe(0);
+  });
+
   it("builds scrollable 30-day training windows", () => {
     const windows = buildTrainingWindows(sessions, "2026-06-17", 2);
 

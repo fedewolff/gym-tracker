@@ -1,4 +1,5 @@
 import type { WorkoutSession } from "../types";
+import { isMobilitySession } from "./mobility";
 
 export const QUICK_SESSION_TEMPLATE_ID = "template-quick-training";
 export const HEATMAP_UNCHECK_TEMPLATE_ID = "template-heatmap-uncheck";
@@ -27,6 +28,7 @@ export function isManualUncheckSession(session: WorkoutSession): boolean {
 export function countTrainingsByDate(sessions: WorkoutSession[]): Map<string, number> {
   const counts = new Map<string, number>();
   for (const session of sessions) {
+    if (isMobilitySession(session)) continue;
     if (isManualUncheckSession(session)) continue;
     counts.set(session.date, Math.min(MAX_DAILY_TRAINING_COUNT, (counts.get(session.date) ?? 0) + 1));
   }

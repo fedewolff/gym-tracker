@@ -81,6 +81,8 @@ export async function importBackup(payload: BackupPayload): Promise<void> {
     await db.templates.bulkPut(payload.templates);
     await db.sessions.bulkPut(payload.sessions ?? []);
     await db.setEntries.bulkPut(payload.setEntries ?? []);
-    await db.meta.bulkPut(payload.meta ?? [{ key: "seedVersion", value: SEED_VERSION }]);
+    await db.meta.bulkPut((payload.meta ?? []).filter((record) => record.key !== "seedVersion"));
   });
+
+  await ensureSeeded();
 }

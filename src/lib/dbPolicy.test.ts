@@ -10,4 +10,12 @@ describe("db seed policy", () => {
     expect(ensureSeededBody).not.toContain("db.sessions.clear()");
     expect(ensureSeededBody).not.toContain("db.setEntries.clear()");
   });
+
+  it("refreshes current seed data after importing a backup", () => {
+    const source = readFileSync(fileURLToPath(new URL("./db.ts", import.meta.url)), "utf8");
+    const importBackupBody = source.slice(source.indexOf("export async function importBackup"), source.length);
+
+    expect(importBackupBody).toContain("await ensureSeeded()");
+    expect(importBackupBody).toContain('record.key !== "seedVersion"');
+  });
 });

@@ -1,6 +1,7 @@
 export type ExerciseSource = "pdf-current" | "excel-upper";
 export type WorkoutType = "leg" | "upper";
 export type TrainingType = WorkoutType | "aerobic";
+export type MobilitySlot = "morning" | "midday" | "siesta" | "night";
 
 export interface Exercise {
   id: string;
@@ -41,8 +42,9 @@ export interface WorkoutSession {
   id: string;
   templateId: string;
   date: string;
-  kind?: "workout" | "quick" | "manual-uncheck";
+  kind?: "workout" | "quick" | "manual-uncheck" | "mobility";
   trainingType?: TrainingType;
+  mobilitySlot?: MobilitySlot;
   painLevel?: number;
   notes?: string;
   createdAt: string;

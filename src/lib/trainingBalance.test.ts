@@ -125,4 +125,19 @@ describe("training balance", () => {
     expect(heatmap.rows.find((row) => row.type === "leg")?.totalDays).toBe(0);
     expect(heatmap.rows.find((row) => row.type === "leg")?.cells.find((cell) => cell.date === "2026-06-17")?.trained).toBe(false);
   });
+
+  it("does not count mobility sessions as aerobic training", () => {
+    const sessions: WorkoutSession[] = [
+      { id: "m1", templateId: "template-mobility", date: "2026-06-17", createdAt: "2026-06-17T10:00:00.000Z", kind: "mobility", mobilitySlot: "morning" },
+    ];
+
+    const heatmap = buildTrainingHeatmap(sessions, templates, [], "2026-06-17");
+
+    expect(countTrainingDaysByType(sessions, templates, "2026-06-04", "2026-06-17")).toEqual({
+      leg: 0,
+      upper: 0,
+      aerobic: 0,
+    });
+    expect(heatmap.summary.totalTrainingDays).toBe(0);
+  });
 });
