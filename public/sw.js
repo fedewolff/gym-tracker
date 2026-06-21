@@ -1,4 +1,4 @@
-const CACHE_NAME = "gym-fede-v2026-06-17-3";
+const CACHE_NAME = "gym-fede-v2026-06-21-1";
 const appScope = new URL(self.registration.scope);
 const APP_SHELL = [
   appScope.pathname,
@@ -29,7 +29,16 @@ self.addEventListener("activate", (event) => {
     caches
       .keys()
       .then((keys) => Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))))
-      .then(() => self.clients.claim()),
+      .then(() => self.clients.claim())
+      .then(() => self.clients.matchAll({ type: "window" }))
+      .then((clients) => {
+        for (const client of clients) {
+          const clientUrl = new URL(client.url);
+          if (clientUrl.origin === self.location.origin && clientUrl.pathname.startsWith(appScope.pathname)) {
+            client.navigate(client.url);
+          }
+        }
+      }),
   );
 });
 

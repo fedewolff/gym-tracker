@@ -878,6 +878,53 @@ textarea:focus {
   color: var(--green);
 }
 
+.fatal-error {
+  align-items: center;
+  background: var(--bg);
+  color: var(--text);
+  display: grid;
+  min-height: 100vh;
+  padding: 24px;
+}
+
+.fatal-error div {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  margin: 0 auto;
+  max-width: 420px;
+  padding: 22px;
+}
+
+.fatal-error span {
+  color: var(--green);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.fatal-error h1 {
+  font-size: 1.35rem;
+  margin: 8px 0;
+}
+
+.fatal-error p {
+  color: var(--muted);
+  margin: 0 0 18px;
+}
+
+.fatal-error button {
+  background: var(--green);
+  border: 0;
+  border-radius: 8px;
+  color: #04130b;
+  font: inherit;
+  font-weight: 800;
+  min-height: 44px;
+  padding: 0 16px;
+}
+
 @media (min-width: 760px) {
   .app {
     padding-bottom: 24px;
