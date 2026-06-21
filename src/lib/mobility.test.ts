@@ -10,6 +10,7 @@ describe("mobility helpers", () => {
     expect(heatmap.days[0].date).toBe("2026-06-04");
     expect(heatmap.days[13].date).toBe("2026-06-17");
     expect(heatmap.rows.map((row) => row.slot)).toEqual(MOBILITY_SLOTS);
+    expect(heatmap.rows.map((row) => row.label)).toEqual(["Mañana", "Mediodía", "Pre entrenar", "Noche"]);
   });
 
   it("counts completed mobility blocks by slot", () => {

@@ -78,7 +78,7 @@ test("records fixed leg plan and monthly upper plan, then charts progress", asyn
   await page.getByRole("button", { name: "Movilidad" }).click();
   await expect(page.getByRole("heading", { name: "Movilidad diaria" })).toBeVisible();
   await expect(page.getByText("Movilidad de tobillo contra pared")).toBeVisible();
-  await expect(page.getByText("Pararse y caminar")).toBeVisible();
+  await expect(page.getByText("Cinto ruso / Spanish squat isométrico")).toBeVisible();
   await page.getByRole("button", { name: "Mañana movilidad pendiente" }).click();
   await expect(page.getByRole("status")).toContainText("Mañana marcada");
   await expect(page.getByTestId("mobility-progress")).toContainText("1 de 4");
