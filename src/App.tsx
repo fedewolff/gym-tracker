@@ -12,7 +12,7 @@ import {
   Upload,
 } from "lucide-react";
 import { getAvailableMonths, getDefaultMonthId } from "./data/seed";
-import { db, ensureSeeded, exportBackup, importBackup } from "./lib/db";
+import { db, ensureArgentinaTimestamps, ensureSeeded, exportBackup, importBackup } from "./lib/db";
 import { argentinaTimestamp, todayIso } from "./lib/dates";
 import { uid } from "./lib/ids";
 import { buildMobilityHeatmap, isMobilitySession, MOBILITY_BLOCKS, MOBILITY_SLOT_LABELS, MOBILITY_TEMPLATE_ID } from "./lib/mobility";
@@ -108,6 +108,7 @@ export default function App() {
 
   useEffect(() => {
     ensureSeeded()
+      .then(ensureArgentinaTimestamps)
       .then(loadData)
       .then(() => setIsReady(true))
       .catch((error) => {

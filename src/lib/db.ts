@@ -31,6 +31,18 @@ export class GymDatabase extends Dexie {
 
 export const db = new GymDatabase();
 
+function normalizeCreatedAt(session: WorkoutSession): WorkoutSession {
+  if (!session.createdAt?.endsWith("Z")) return session;
+
+  const parsed = new Date(session.createdAt);
+  if (Number.isNaN(parsed.getTime())) return session;
+
+  return {
+    ...session,
+    createdAt: argentinaTimestamp(parsed),
+  };
+}
+
 export async function ensureSeeded(): Promise<void> {
   const seedMeta = await db.meta.get("seedVersion");
   if (seedMeta?.value === SEED_VERSION) return;
@@ -45,6 +57,13 @@ export async function ensureSeeded(): Promise<void> {
     await db.templates.bulkPut(seed.templates);
     await db.meta.put({ key: "seedVersion", value: SEED_VERSION });
   });
+}
+
+export async function ensureArgentinaTimestamps(): Promise<void> {
+  const utcSessions = await db.sessions.filter((session) => Boolean(session.createdAt?.endsWith("Z"))).toArray();
+  if (!utcSessions.length) return;
+
+  await db.sessions.bulkPut(utcSessions.map(normalizeCreatedAt));
 }
 
 export async function exportBackup(): Promise<BackupPayload> {
@@ -80,7 +99,7 @@ export async function importBackup(payload: BackupPayload): Promise<void> {
     await db.meta.clear();
     await db.exercises.bulkPut(payload.exercises);
     await db.templates.bulkPut(payload.templates);
-    await db.sessions.bulkPut(payload.sessions ?? []);
+    await db.sessions.bulkPut((payload.sessions ?? []).map(normalizeCreatedAt));
     await db.setEntries.bulkPut(payload.setEntries ?? []);
     await db.meta.bulkPut((payload.meta ?? []).filter((record) => record.key !== "seedVersion"));
   });

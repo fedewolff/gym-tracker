@@ -18,4 +18,15 @@ describe("db seed policy", () => {
     expect(importBackupBody).toContain("await ensureSeeded()");
     expect(importBackupBody).toContain('record.key !== "seedVersion"');
   });
+
+  it("normalizes stored UTC session timestamps without deleting sessions", () => {
+    const source = readFileSync(fileURLToPath(new URL("./db.ts", import.meta.url)), "utf8");
+    const normalizeBody = source.slice(source.indexOf("export async function ensureArgentinaTimestamps"), source.indexOf("export async function exportBackup"));
+    const importBackupBody = source.slice(source.indexOf("export async function importBackup"), source.length);
+
+    expect(normalizeBody).toContain('createdAt?.endsWith("Z")');
+    expect(normalizeBody).toContain("db.sessions.bulkPut");
+    expect(normalizeBody).not.toContain("db.sessions.clear()");
+    expect(importBackupBody).toContain(".map(normalizeCreatedAt)");
+  });
 });
