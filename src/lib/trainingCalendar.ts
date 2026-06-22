@@ -1,4 +1,5 @@
 import type { WorkoutSession } from "../types";
+import { dateFromIso, isoFromDate } from "./dates";
 import { isMobilitySession } from "./mobility";
 
 export const QUICK_SESSION_TEMPLATE_ID = "template-quick-training";
@@ -37,13 +38,13 @@ export function countTrainingsByDate(sessions: WorkoutSession[]): Map<string, nu
 
 export function buildTrainingDays(sessions: WorkoutSession[], anchorDate: string, dayCount = 30, offsetDays = 0): TrainingDay[] {
   const counts = countTrainingsByDate(sessions);
-  const anchor = new Date(`${anchorDate}T12:00:00`);
+  const anchor = dateFromIso(anchorDate);
   anchor.setDate(anchor.getDate() - offsetDays);
 
   return Array.from({ length: dayCount }, (_, index) => {
     const date = new Date(anchor);
     date.setDate(anchor.getDate() - (dayCount - 1 - index));
-    const iso = date.toISOString().slice(0, 10);
+    const iso = isoFromDate(date);
 
     return {
       date: iso,

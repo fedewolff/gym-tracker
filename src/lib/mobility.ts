@@ -1,4 +1,5 @@
 import type { MobilitySlot, WorkoutSession } from "../types";
+import { dateFromIso, formatDayMonth, isoFromDate, shiftDate } from "./dates";
 
 export const MOBILITY_TEMPLATE_ID = "template-mobility";
 
@@ -107,24 +108,6 @@ export interface MobilityHeatmap {
   };
 }
 
-function dateFromIso(date: string): Date {
-  return new Date(`${date}T12:00:00`);
-}
-
-function isoFromDate(date: Date): string {
-  return date.toISOString().slice(0, 10);
-}
-
-function shiftDate(date: Date, deltaDays: number): Date {
-  const next = new Date(date);
-  next.setDate(next.getDate() + deltaDays);
-  return next;
-}
-
-function formatPointLabel(date: Date): string {
-  return `${date.getDate()}/${date.getMonth() + 1}`;
-}
-
 export function isMobilitySession(session: WorkoutSession): boolean {
   return session.kind === "mobility" || session.templateId === MOBILITY_TEMPLATE_ID;
 }
@@ -139,7 +122,7 @@ export function buildMobilityHeatmap(
     const date = shiftDate(anchor, index - windowDays + 1);
     return {
       date: isoFromDate(date),
-      label: formatPointLabel(date),
+      label: formatDayMonth(date),
       weekday: WEEKDAY_LABELS[date.getDay()],
     };
   });

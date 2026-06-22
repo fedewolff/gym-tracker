@@ -1,4 +1,4 @@
-const CACHE_NAME = "gym-fede-v2026-06-21-2";
+const CACHE_NAME = "gym-fede-v2026-06-22-1";
 const appScope = new URL(self.registration.scope);
 const APP_SHELL = [
   appScope.pathname,

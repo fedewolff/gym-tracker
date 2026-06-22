@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from "react";
 import {
   Check,
   Download,
@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { getAvailableMonths, getDefaultMonthId } from "./data/seed";
 import { db, ensureSeeded, exportBackup, importBackup } from "./lib/db";
+import { todayIso } from "./lib/dates";
 import { uid } from "./lib/ids";
 import { buildMobilityHeatmap, isMobilitySession, MOBILITY_BLOCKS, MOBILITY_SLOT_LABELS, MOBILITY_TEMPLATE_ID } from "./lib/mobility";
 import { getLatestAnySet, getLatestSetsByNumber } from "./lib/progress";
@@ -51,10 +52,6 @@ const TABS: Array<{ id: View; label: string; icon: typeof Dumbbell }> = [
   { id: "exercises", label: "Ejercicios", icon: Search },
   { id: "settings", label: "Ajustes", icon: Settings },
 ];
-
-function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
-}
 
 function mergeClass(...classes: Array<string | false | undefined>): string {
   return classes.filter(Boolean).join(" ");
@@ -692,8 +689,38 @@ function ProgressView({
   const mobilityScrollerRef = useRef<HTMLDivElement>(null);
   const didPositionHeatmap = useRef(false);
   const didPositionMobility = useRef(false);
+  const heatmapGestureRef = useRef<{ x: number; y: number; moved: boolean } | null>(null);
   const heatmap = useMemo(() => buildTrainingHeatmap(sessions, templates, setEntries, calendarAnchorDate), [calendarAnchorDate, sessions, setEntries, templates]);
   const mobilityHeatmap = useMemo(() => buildMobilityHeatmap(sessions, calendarAnchorDate), [calendarAnchorDate, sessions]);
+
+  const startHeatmapGesture = (event: ReactPointerEvent<HTMLDivElement>) => {
+    heatmapGestureRef.current = { x: event.clientX, y: event.clientY, moved: false };
+  };
+
+  const moveHeatmapGesture = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const gesture = heatmapGestureRef.current;
+    if (!gesture) return;
+
+    const distance = Math.hypot(event.clientX - gesture.x, event.clientY - gesture.y);
+    if (distance > 10) gesture.moved = true;
+  };
+
+  const finishHeatmapGesture = () => {
+    window.setTimeout(() => {
+      heatmapGestureRef.current = null;
+    }, 0);
+  };
+
+  const runHeatmapAction = (event: ReactMouseEvent<HTMLButtonElement>, action: () => void) => {
+    const wasSwipe = Boolean(heatmapGestureRef.current?.moved);
+    heatmapGestureRef.current = null;
+    if (wasSwipe) {
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+    action();
+  };
 
   useLayoutEffect(() => {
     const scroller = heatmapScrollerRef.current;
@@ -755,7 +782,16 @@ function ProgressView({
           </div>
         </div>
 
-        <div ref={heatmapScrollerRef} className="heatmap-scroller" data-testid="training-heatmap" aria-label="Heatmap de entrenamientos últimos 14 días">
+        <div
+          ref={heatmapScrollerRef}
+          className="heatmap-scroller"
+          data-testid="training-heatmap"
+          aria-label="Heatmap de entrenamientos últimos 14 días"
+          onPointerDown={startHeatmapGesture}
+          onPointerMove={moveHeatmapGesture}
+          onPointerUp={finishHeatmapGesture}
+          onPointerCancel={finishHeatmapGesture}
+        >
           <div className="heatmap-grid">
             <div className="heatmap-label heatmap-head">Grupo</div>
             {heatmap.days.map((day) => (
@@ -774,7 +810,7 @@ function ProgressView({
                     type="button"
                     key={`${row.type}-${cell.date}`}
                     className={`heatmap-cell heatmap-level-${cell.level}`}
-                    onClick={() => onToggleTraining(cell.date, row.type)}
+                    onClick={(event) => runHeatmapAction(event, () => onToggleTraining(cell.date, row.type))}
                     title={`${row.label} ${cell.date}${cell.trained ? ` · intensidad ${cell.intensity}` : ""}`}
                     aria-label={`${row.label} ${cell.date}${cell.trained ? " entrenado" : " descanso"}`}
                   >
@@ -820,7 +856,16 @@ function ProgressView({
           </div>
         </div>
 
-        <div ref={mobilityScrollerRef} className="heatmap-scroller" data-testid="mobility-heatmap" aria-label="Heatmap de movilidad últimos 14 días">
+        <div
+          ref={mobilityScrollerRef}
+          className="heatmap-scroller"
+          data-testid="mobility-heatmap"
+          aria-label="Heatmap de movilidad últimos 14 días"
+          onPointerDown={startHeatmapGesture}
+          onPointerMove={moveHeatmapGesture}
+          onPointerUp={finishHeatmapGesture}
+          onPointerCancel={finishHeatmapGesture}
+        >
           <div className="heatmap-grid">
             <div className="heatmap-label heatmap-head">Bloque</div>
             {mobilityHeatmap.days.map((day) => (
@@ -839,7 +884,7 @@ function ProgressView({
                     type="button"
                     key={`${row.slot}-${cell.date}`}
                     className={`heatmap-cell ${cell.completed ? "heatmap-level-4" : "heatmap-level-0"}`}
-                    onClick={() => onToggleMobility(cell.date, row.slot)}
+                    onClick={(event) => runHeatmapAction(event, () => onToggleMobility(cell.date, row.slot))}
                     title={`${row.label} ${cell.date}`}
                     aria-label={`${row.label} ${cell.date} ${cell.completed ? "hecha" : "pendiente"}`}
                   >

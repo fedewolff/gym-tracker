@@ -1,5 +1,32 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import path from "node:path";
+
+interface StoredSession {
+  date: string;
+  kind?: string;
+  mobilitySlot?: string;
+}
+
+async function readStoredSessions(page: Page): Promise<StoredSession[]> {
+  return page.evaluate(
+    () =>
+      new Promise<StoredSession[]>((resolve, reject) => {
+        const request = indexedDB.open("gym-fede-db");
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => {
+          const database = request.result;
+          const transaction = database.transaction("sessions", "readonly");
+          const store = transaction.objectStore("sessions");
+          const allSessions = store.getAll();
+          allSessions.onerror = () => reject(allSessions.error);
+          allSessions.onsuccess = () => {
+            database.close();
+            resolve(allSessions.result as StoredSession[]);
+          };
+        };
+      }),
+  );
+}
 
 test("records fixed leg plan and monthly upper plan, then charts progress", async ({ page, context, browserName }, testInfo) => {
   await page.goto("/");
@@ -105,12 +132,33 @@ test("records fixed leg plan and monthly upper plan, then charts progress", asyn
   await expect(page.getByTestId("mobility-balance-chart")).toContainText("1");
   await expect(page.getByTestId("mobility-heatmap")).toContainText("Mañana");
   await expect(page.getByLabel(`Mañana ${savedDate} hecha`)).toBeVisible();
+  const preWorkoutCell = page.getByLabel(`Pre entrenar ${savedDate} pendiente`);
+  const preWorkoutBox = await preWorkoutCell.boundingBox();
+  expect(preWorkoutBox).not.toBeNull();
+  await page.mouse.move(preWorkoutBox!.x + preWorkoutBox!.width / 2, preWorkoutBox!.y + preWorkoutBox!.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(preWorkoutBox!.x + preWorkoutBox!.width / 2 - 48, preWorkoutBox!.y + preWorkoutBox!.height / 2, { steps: 5 });
+  await page.mouse.up();
+  await expect(page.getByLabel(`Pre entrenar ${savedDate} pendiente`)).toBeVisible();
   await page.getByLabel(`Mediodía ${savedDate} pendiente`).click();
   await expect(page.getByRole("status")).toContainText("Mediodía marcada");
   await expect(page.getByLabel(`Mediodía ${savedDate} hecha`)).toBeVisible();
+  let storedSessions = await readStoredSessions(page);
+  expect(storedSessions).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        date: savedDate,
+        kind: "mobility",
+        mobilitySlot: "midday",
+      }),
+    ]),
+  );
+  expect(storedSessions.filter((session) => session.kind === "mobility" && session.mobilitySlot === "midday" && session.date !== savedDate)).toHaveLength(0);
   await page.getByLabel(`Mediodía ${savedDate} hecha`).click();
   await expect(page.getByRole("status")).toContainText("Mediodía desmarcada");
   await expect(page.getByLabel(`Mediodía ${savedDate} pendiente`)).toBeVisible();
+  storedSessions = await readStoredSessions(page);
+  expect(storedSessions.filter((session) => session.kind === "mobility" && session.mobilitySlot === "midday" && session.date === savedDate)).toHaveLength(0);
   await expect(page.getByLabel("Ejercicio")).toHaveCount(0);
   await expect(page.getByTestId("progress-chart")).toHaveCount(0);
 

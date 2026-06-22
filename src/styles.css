@@ -674,7 +674,7 @@ textarea:focus {
 .heatmap-grid {
   display: grid;
   gap: 6px;
-  grid-template-columns: 82px repeat(14, 32px) 74px;
+  grid-template-columns: 92px repeat(14, 40px) 82px;
   min-width: max-content;
 }
 
@@ -730,7 +730,7 @@ textarea:focus {
 .heatmap-total {
   border: 1px solid var(--line);
   border-radius: 7px;
-  min-height: 32px;
+  min-height: 38px;
 }
 
 .heatmap-cell {

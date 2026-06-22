@@ -1,4 +1,5 @@
 import type { SetEntry, TrainingType, WorkoutSession, WorkoutTemplate } from "../types";
+import { dateFromIso, formatDayMonth, isoFromDate, shiftDate } from "./dates";
 import { isMobilitySession } from "./mobility";
 import { isManualUncheckSession, isQuickSession } from "./trainingCalendar";
 
@@ -53,24 +54,6 @@ export interface TrainingHeatmap {
   days: TrainingHeatmapDay[];
   rows: TrainingHeatmapRow[];
   summary: TrainingHeatmapSummary;
-}
-
-function dateFromIso(date: string): Date {
-  return new Date(`${date}T12:00:00`);
-}
-
-function formatPointLabel(date: Date): string {
-  return `${date.getDate()}/${date.getMonth() + 1}`;
-}
-
-function shiftDate(date: Date, deltaDays: number): Date {
-  const next = new Date(date);
-  next.setDate(next.getDate() + deltaDays);
-  return next;
-}
-
-function isoFromDate(date: Date): string {
-  return date.toISOString().slice(0, 10);
 }
 
 export function resolveTrainingType(
@@ -147,7 +130,7 @@ export function buildRollingTrainingBalance(
 
     return {
       date: isoFromDate(end),
-      label: formatPointLabel(end),
+      label: formatDayMonth(end),
       leg: counts.leg,
       upper: counts.upper,
       aerobic: counts.aerobic,
@@ -170,7 +153,7 @@ export function buildTrainingHeatmap(
     const date = shiftDate(anchor, index - windowDays + 1);
     return {
       date: isoFromDate(date),
-      label: formatPointLabel(date),
+      label: formatDayMonth(date),
       weekday: WEEKDAY_LABELS[date.getDay()],
     };
   });
