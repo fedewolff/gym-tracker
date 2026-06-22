@@ -1,6 +1,7 @@
 import Dexie, { type Table } from "dexie";
 import type { BackupPayload, Exercise, MetaRecord, SetEntry, WorkoutSession, WorkoutTemplate } from "../types";
 import { buildSeedData, SEED_VERSION } from "../data/seed";
+import { argentinaTimestamp } from "./dates";
 
 export class GymDatabase extends Dexie {
   exercises!: Table<Exercise, string>;
@@ -57,7 +58,7 @@ export async function exportBackup(): Promise<BackupPayload> {
 
   return {
     version: 1,
-    exportedAt: new Date().toISOString(),
+    exportedAt: argentinaTimestamp(),
     exercises,
     templates,
     sessions,

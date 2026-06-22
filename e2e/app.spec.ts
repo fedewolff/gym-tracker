@@ -1,10 +1,12 @@
 import { expect, test, type Page } from "@playwright/test";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 
 interface StoredSession {
   date: string;
   kind?: string;
   mobilitySlot?: string;
+  createdAt?: string;
 }
 
 async function readStoredSessions(page: Page): Promise<StoredSession[]> {
@@ -150,6 +152,7 @@ test("records fixed leg plan and monthly upper plan, then charts progress", asyn
         date: savedDate,
         kind: "mobility",
         mobilitySlot: "midday",
+        createdAt: expect.stringMatching(/-03:00$/),
       }),
     ]),
   );
@@ -170,6 +173,8 @@ test("records fixed leg plan and monthly upper plan, then charts progress", asyn
   const download = await downloadPromise;
   const backupPath = path.join(testInfo.outputDir, "backup.json");
   await download.saveAs(backupPath);
+  const backup = JSON.parse(await readFile(backupPath, "utf8"));
+  expect(backup.exportedAt).toMatch(/-03:00$/);
 
   await page.locator('input[type="file"]').setInputFiles(backupPath);
   await expect(page.getByRole("status")).toContainText("Backup importado");

@@ -1,4 +1,5 @@
 import type { SetEntry, WorkoutSession } from "../types";
+import { dateFromIso } from "./dates";
 
 export interface LatestSet {
   setNumber: number;
@@ -18,7 +19,7 @@ export interface ProgressPoint {
 }
 
 function sessionTime(session: WorkoutSession): number {
-  return new Date(`${session.date}T12:00:00`).getTime();
+  return dateFromIso(session.date).getTime();
 }
 
 export function getLatestSetsByNumber(

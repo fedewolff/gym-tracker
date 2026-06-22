@@ -5,6 +5,7 @@ import {
   buildWorkoutTemplates,
   parseExcelUpperRows,
 } from "./parsers";
+import { argentinaMonthIndex, argentinaYear } from "../lib/dates";
 
 export const SEED_VERSION = "2026-06-17-v2-reset";
 
@@ -58,6 +59,6 @@ export function getAvailableMonths(templates: WorkoutTemplate[]): Array<{ id: st
 export function getDefaultMonthId(templates: WorkoutTemplate[], now = new Date()): string {
   const months = getAvailableMonths(templates);
   const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
-  const currentLabel = `${monthNames[now.getMonth()]} ${now.getFullYear()}`;
+  const currentLabel = `${monthNames[argentinaMonthIndex(now)]} ${argentinaYear(now)}`;
   return months.find((month) => month.label === currentLabel)?.id ?? months[months.length - 1]?.id ?? "";
 }

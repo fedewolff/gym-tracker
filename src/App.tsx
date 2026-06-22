@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { getAvailableMonths, getDefaultMonthId } from "./data/seed";
 import { db, ensureSeeded, exportBackup, importBackup } from "./lib/db";
-import { todayIso } from "./lib/dates";
+import { argentinaTimestamp, todayIso } from "./lib/dates";
 import { uid } from "./lib/ids";
 import { buildMobilityHeatmap, isMobilitySession, MOBILITY_BLOCKS, MOBILITY_SLOT_LABELS, MOBILITY_TEMPLATE_ID } from "./lib/mobility";
 import { getLatestAnySet, getLatestSetsByNumber } from "./lib/progress";
@@ -133,7 +133,7 @@ export default function App() {
       kind: "workout",
       trainingType: template.type,
       painLevel,
-      createdAt: new Date().toISOString(),
+      createdAt: argentinaTimestamp(),
     };
 
     const entries: SetEntry[] = Object.entries(draft).flatMap(([exerciseId, sets]) =>
@@ -181,7 +181,7 @@ export default function App() {
             date,
             kind: "quick",
             trainingType,
-            createdAt: new Date().toISOString(),
+            createdAt: argentinaTimestamp(),
           });
         }
         return;
@@ -201,7 +201,7 @@ export default function App() {
           date,
           kind: "manual-uncheck",
           trainingType,
-          createdAt: new Date().toISOString(),
+          createdAt: argentinaTimestamp(),
         });
         return;
       }
@@ -213,7 +213,7 @@ export default function App() {
           date,
           kind: "quick",
           trainingType,
-          createdAt: new Date().toISOString(),
+          createdAt: argentinaTimestamp(),
         });
       }
     });
@@ -240,7 +240,7 @@ export default function App() {
         date,
         kind: "mobility",
         mobilitySlot,
-        createdAt: new Date().toISOString(),
+        createdAt: argentinaTimestamp(),
       });
     });
 
