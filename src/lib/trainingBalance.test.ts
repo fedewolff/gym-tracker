@@ -34,6 +34,21 @@ describe("training balance", () => {
     ).toBe("aerobic");
   });
 
+  it("keeps sessions from reseeded plans classified after their template is gone", () => {
+    expect(
+      resolveTrainingType(
+        { id: "s4", templateId: "template-leg-fixed", date: "2026-06-17", createdAt: "2026-06-17T12:00:00.000Z", kind: "workout" },
+        templates,
+      ),
+    ).toBe("leg");
+    expect(
+      resolveTrainingType(
+        { id: "s5", templateId: "template-upper-abril-2026-1", date: "2026-06-17", createdAt: "2026-06-17T12:00:00.000Z", kind: "workout" },
+        templates,
+      ),
+    ).toBe("upper");
+  });
+
   it("counts unique days by type inside a window", () => {
     const sessions: WorkoutSession[] = [
       { id: "s1", templateId: "leg-template", date: "2026-06-10", createdAt: "2026-06-10T12:00:00.000Z", kind: "workout" },

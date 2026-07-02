@@ -239,6 +239,92 @@ test("records rehab leg plan and monthly upper plan, then charts progress", asyn
   }
 });
 
+test("keeps unsaved weight input when toggling exercise checks", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: "Pierna A" })).toBeVisible();
+  await page.getByLabel("Día").selectOption("B");
+  await expect(page.getByRole("heading", { name: "Pierna B" })).toBeVisible();
+
+  await page.getByLabel("GYM: Prensa excéntrica (2 arriba / 1 abajo) peso").fill("77");
+  await page.getByRole("button", { name: "Bici estática hecho" }).click();
+  await expect(page.getByTestId("day-progress")).toContainText("1 de 22");
+  await expect(page.getByLabel("GYM: Prensa excéntrica (2 arriba / 1 abajo) peso")).toHaveValue("77");
+
+  await page.getByRole("button", { name: "Bici estática hecho" }).click();
+  await expect(page.getByTestId("day-progress")).toContainText("0 de 22");
+  await expect(page.getByLabel("GYM: Prensa excéntrica (2 arriba / 1 abajo) peso")).toHaveValue("77");
+});
+
+test("imports a v1 backup from the old tendon plan without losing history", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: "Pierna A" })).toBeVisible();
+  const todayDate = await page.getByLabel("Fecha").inputValue();
+
+  const v1Backup = {
+    version: 1,
+    exportedAt: "2026-06-20T10:00:00.000-03:00",
+    exercises: [
+      {
+        id: "ex-sentadilla-con-barra",
+        name: "Sentadilla con barra",
+        group: "Pierna",
+        block: "Plan tendón actual",
+        source: "pdf-current",
+        activeInRoutine: true,
+      },
+    ],
+    templates: [
+      {
+        id: "template-leg-fixed",
+        name: "Pierna",
+        type: "leg",
+        exercises: [{ exerciseId: "ex-sentadilla-con-barra", order: 1, block: "Plan tendón actual" }],
+      },
+    ],
+    sessions: [
+      {
+        id: "session-old-1",
+        templateId: "template-leg-fixed",
+        date: todayDate,
+        kind: "workout",
+        createdAt: `${todayDate}T13:00:00.000Z`,
+      },
+    ],
+    setEntries: [
+      {
+        id: "set-old-1",
+        sessionId: "session-old-1",
+        exerciseId: "ex-sentadilla-con-barra",
+        date: todayDate,
+        setNumber: 1,
+        weightText: "50",
+        weightNumber: 50,
+        reps: "6",
+      },
+    ],
+    meta: [{ key: "seedVersion", value: "2026-06-17-v2-reset" }],
+  };
+
+  await page.getByRole("button", { name: "Ajustes" }).click();
+  await page.locator('input[type="file"]').setInputFiles({
+    name: "backup-v1.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(v1Backup)),
+  });
+  await expect(page.getByRole("status")).toContainText("Backup importado");
+
+  await page.getByRole("button", { name: "Entrenar" }).click();
+  await expect(page.getByRole("heading", { name: "Pierna A" })).toBeVisible();
+  await expect(page.getByTestId("day-progress")).toContainText("0 de 23");
+
+  await page.getByRole("button", { name: "Progreso" }).click();
+  await expect(page.getByLabel(`Pierna ${todayDate} entrenado`)).toBeVisible();
+
+  const storedSessions = await readStoredSessions(page);
+  const oldSession = storedSessions.find((session) => session.date === todayDate && session.kind === "workout");
+  expect(oldSession?.createdAt).toMatch(/-03:00$/);
+});
+
 test("minimal desktop layout shows monthly upper routines without overlap", async ({ page }, testInfo) => {
   await page.goto("/");
   await page.setViewportSize({ width: 1440, height: 1000 });

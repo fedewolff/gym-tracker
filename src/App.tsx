@@ -210,7 +210,9 @@ export default function App() {
     } else {
       await db.exerciseChecks.put(buildExerciseCheck(date, template.id, item));
     }
-    await loadData();
+    // Refresh only the checks: a full loadData() would rebuild the draft and wipe unsaved weight inputs.
+    const exerciseChecks = await db.exerciseChecks.toArray();
+    setData((current) => ({ ...current, exerciseChecks }));
   };
 
   const toggleHeatmapTraining = async (date: string, trainingType: TrainingType) => {

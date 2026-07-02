@@ -67,6 +67,10 @@ export function resolveTrainingType(
   const template = templates.find((candidate) => candidate.id === session.templateId);
   if (template?.type === "leg" || template?.type === "upper") return template.type;
 
+  // Sessions can outlive their template across plan reseeds (e.g. template-leg-fixed).
+  if (session.templateId.startsWith("template-leg")) return "leg";
+  if (session.templateId.startsWith("template-upper")) return "upper";
+
   return "aerobic";
 }
 
