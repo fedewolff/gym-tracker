@@ -30,12 +30,21 @@ async function readStoredSessions(page: Page): Promise<StoredSession[]> {
   );
 }
 
-test("records fixed leg plan and monthly upper plan, then charts progress", async ({ page, context, browserName }, testInfo) => {
+test("records rehab leg plan and monthly upper plan, then charts progress", async ({ page, context, browserName }, testInfo) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Entrenar" })).toBeVisible();
-  await expect(page.getByTestId("day-progress")).toContainText("0 de 6");
+  await expect(page.getByRole("heading", { name: "Pierna A" })).toBeVisible();
+  await expect(page.getByTestId("day-progress")).toContainText("0 de 23");
   await expect(page.getByTestId("training-calendar")).toHaveCount(0);
   await expect(page.getByPlaceholder("Notas")).toHaveCount(0);
+
+  await expect(page.getByRole("heading", { name: "1. Entrada en calor + core (todos los días)" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "2. Rodilla Día A (3x/semana) — Control de extensión" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "4. Elongación (todos los días, post A y B)" })).toBeVisible();
+  await expect(page.getByText("Activación metabólica suave")).toBeVisible();
+  await expect(page.getByText("IZQ (lesionada) 3x6 · DER 1x6").first()).toBeVisible();
+  await expect(page.getByText("Banda detrás de la rodilla tirando desde el frente", { exact: false })).toBeVisible();
+  await expect(page.getByLabel("Almeja (clamshell) peso")).toHaveCount(0);
 
   if ((page.viewportSize()?.width ?? 0) < 760) {
     await page.evaluate(() => window.scrollTo(0, 650));
@@ -45,15 +54,28 @@ test("records fixed leg plan and monthly upper plan, then charts progress", asyn
     await page.evaluate(() => window.scrollTo(0, 0));
   }
 
-  await page.getByRole("button", { name: "Sentadilla con barra hecho" }).click();
-  await expect(page.getByTestId("day-progress")).toContainText("1 de 6");
-  await expect(page.getByTestId("day-progress")).toContainText("5 quedan");
+  await page.getByRole("button", { name: "Almeja (clamshell) hecho" }).click();
+  await expect(page.getByTestId("day-progress")).toContainText("1 de 23");
+  await expect(page.getByTestId("day-progress")).toContainText("22 quedan");
 
-  await page.getByLabel("Sentadilla con barra serie 1 peso").fill("50");
-  await page.getByLabel("Sentadilla con barra serie 1 reps").fill("6");
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Entrenar" })).toBeVisible();
+  await expect(page.getByTestId("day-progress")).toContainText("1 de 23");
+
+  await page.getByLabel("Día").selectOption("B");
+  await expect(page.getByRole("heading", { name: "Pierna B" })).toBeVisible();
+  await expect(page.getByTestId("day-progress")).toContainText("0 de 22");
+  await expect(page.getByRole("heading", { name: "3. Rodilla Día B (2x/semana) — Fuerza pesada" })).toBeVisible();
+  await expect(page.getByText("Subir con DOS piernas, bajar controlado con UNA (excéntrico)")).toBeVisible();
+  await expect(page.getByLabel("GYM: Prensa excéntrica (2 arriba / 1 abajo) peso")).toBeVisible();
+  await expect(page.getByLabel("Sentadilla isométrica 45° en step inclinado + pelota entre rodillas peso")).toHaveCount(0);
+
+  await page.getByLabel("GYM: Prensa excéntrica (2 arriba / 1 abajo) peso").fill("80");
+  await page.getByLabel("GYM: Camilla de cuádriceps excéntrica con tempos peso").fill("35");
   const savedDate = await page.getByLabel("Fecha").inputValue();
   await page.getByTestId("save-workout").click();
   await expect(page.getByRole("status")).toContainText("Entrenamiento guardado");
+  await expect(page.getByTestId("day-progress")).toContainText("Completo");
 
   await page.getByRole("button", { name: "Progreso" }).click();
   await expect(page.getByTestId("training-balance-chart")).toContainText("Últimos 14 días");
@@ -101,10 +123,13 @@ test("records fixed leg plan and monthly upper plan, then charts progress", asyn
 
   await page.reload();
   await expect(page.getByRole("heading", { name: "Entrenar" })).toBeVisible();
-  await expect(page.getByLabel("Sentadilla con barra serie 1 peso")).toHaveValue("50");
-  await expect(page.getByLabel("Sentadilla con barra serie 1 reps")).toHaveValue("6");
+  await expect(page.getByTestId("day-progress")).toContainText("1 de 23");
+  await page.getByLabel("Día").selectOption("B");
+  await expect(page.getByLabel("GYM: Prensa excéntrica (2 arriba / 1 abajo) peso")).toHaveValue("80");
+  await expect(page.getByLabel("GYM: Camilla de cuádriceps excéntrica con tempos peso")).toHaveValue("35");
+  await expect(page.getByTestId("day-progress")).toContainText("Completo");
 
-  await page.getByRole("button", { name: "Movilidad" }).click();
+  await page.getByRole("button", { name: "Movilidad", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Movilidad diaria" })).toBeVisible();
   await expect(page.getByText("Movilidad de tobillo contra pared")).toBeVisible();
   await expect(page.getByText("Cinto ruso / Spanish squat isométrico")).toBeVisible();
@@ -175,9 +200,29 @@ test("records fixed leg plan and monthly upper plan, then charts progress", asyn
   await download.saveAs(backupPath);
   const backup = JSON.parse(await readFile(backupPath, "utf8"));
   expect(backup.exportedAt).toMatch(/-03:00$/);
+  expect(backup.version).toBe(2);
+  expect(backup.exerciseChecks).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({ date: savedDate, templateId: "template-leg-a", exerciseId: "ex-almeja-clamshell" }),
+      expect.objectContaining({ date: savedDate, templateId: "template-leg-b", exerciseId: "ex-gym-prensa-excentrica-2-arriba-1-abajo" }),
+    ]),
+  );
+  expect(backup.setEntries).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({ exerciseId: "ex-gym-prensa-excentrica-2-arriba-1-abajo", weightText: "80", weightNumber: 80 }),
+    ]),
+  );
 
   await page.locator('input[type="file"]').setInputFiles(backupPath);
   await expect(page.getByRole("status")).toContainText("Backup importado");
+
+  await page.getByRole("button", { name: "Entrenar" }).click();
+  await page.getByRole("button", { name: "Pierna", exact: true }).click();
+  await expect(page.getByTestId("day-progress")).toContainText("Completo");
+  await expect(page.getByLabel("GYM: Prensa excéntrica (2 arriba / 1 abajo) peso")).toHaveValue("80");
+  await page.getByLabel("Día").selectOption("A");
+  await expect(page.getByTestId("day-progress")).toContainText("1 de 23");
+  await page.getByRole("button", { name: "Ajustes" }).click();
 
   const hasServiceWorker = await page.evaluate(async () => {
     if (!("serviceWorker" in navigator)) return false;

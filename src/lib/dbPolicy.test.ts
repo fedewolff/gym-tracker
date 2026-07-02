@@ -3,12 +3,13 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 describe("db seed policy", () => {
-  it("does not clear user-entered sessions or sets when refreshing seed data", () => {
+  it("does not clear user-entered sessions, sets or checks when refreshing seed data", () => {
     const source = readFileSync(fileURLToPath(new URL("./db.ts", import.meta.url)), "utf8");
     const ensureSeededBody = source.slice(source.indexOf("export async function ensureSeeded"), source.indexOf("export async function exportBackup"));
 
     expect(ensureSeededBody).not.toContain("db.sessions.clear()");
     expect(ensureSeededBody).not.toContain("db.setEntries.clear()");
+    expect(ensureSeededBody).not.toContain("db.exerciseChecks.clear()");
   });
 
   it("refreshes current seed data after importing a backup", () => {
@@ -17,6 +18,16 @@ describe("db seed policy", () => {
 
     expect(importBackupBody).toContain("await ensureSeeded()");
     expect(importBackupBody).toContain('record.key !== "seedVersion"');
+  });
+
+  it("round-trips exercise checks through export and import, tolerating v1 backups", () => {
+    const source = readFileSync(fileURLToPath(new URL("./db.ts", import.meta.url)), "utf8");
+    const exportBody = source.slice(source.indexOf("export async function exportBackup"), source.indexOf("export async function importBackup"));
+    const importBackupBody = source.slice(source.indexOf("export async function importBackup"), source.length);
+
+    expect(exportBody).toContain("db.exerciseChecks.toArray()");
+    expect(exportBody).toContain("exerciseChecks,");
+    expect(importBackupBody).toContain("payload.exerciseChecks ?? []");
   });
 
   it("normalizes stored UTC session timestamps without deleting sessions", () => {

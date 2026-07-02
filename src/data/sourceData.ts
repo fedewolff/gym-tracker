@@ -1,34 +1,53 @@
-export const PDF_PLAN_TEXT = `
-Programa de Ejercicio Físico Adaptado
-Fede (3 veces por semana - día por medio)
+export type RehabDays = "A" | "B" | "both";
 
-Sentadilla con cinto ruso isométrico: 5 rep manteniendo 10 seg
-https://youtu.be/mik90mAS6fU
-Pausa entre rep: 8 seg
+export interface RehabPlanRow {
+  block: string;
+  days: RehabDays;
+  order: number;
+  exercise: string;
+  left: string;
+  right: string;
+  notes?: string;
+  videoUrl?: string;
+  tracksWeight?: boolean;
+}
 
-Sentadilla con barra: 4 x 6 rep (baja en 2 seg, sube en 2 seg)
-https://youtu.be/8tCHW2IJ5UY
-Percepción de esfuerzo: 7-8
+const BLOCK_WARMUP = "1. Entrada en calor + core (todos los días)";
+const BLOCK_DAY_A = "2. Rodilla Día A (3x/semana) — Control de extensión";
+const BLOCK_DAY_B = "3. Rodilla Día B (2x/semana) — Fuerza pesada";
+const BLOCK_STRETCH = "4. Elongación (todos los días, post A y B)";
 
-Extensores de rodilla unilateral: 4 x 6 rep (sube en 2 seg baja en 2 seg)
-Percepción de esfuerzo: 5-7
-https://youtu.be/fWwmC--hRGI
-
-Prensa: 4 x 6 rep (baja en 2 seg, sube en 2 seg)
-https://youtu.be/cjSjskAxI_c
-Percepción de esfuerzo: 7-8
-
-Bulgara front: 2 x 8 rep c/lado
-https://www.youtube.com/shorts/fnQFJAhqt3Q?feature=share
-Percepción de esfuerzo: 6-7
-
-Peso muerto c/rotación: 2 x 8 rep
-https://youtu.be/11_D7wCPxBg
-Percepción de esfuerzo: 6-7
-
-Fede: molestias durante gym que NO sobrepase de 2-3.
-Semana a semana si podés incrementar algo el peso. Ej de a 5 kg.
-`;
+// Plan Rehabilitación Rodilla — Fede (30/06 → 30/07)
+export const REHAB_PLAN_ROWS: RehabPlanRow[] = [
+  { block: BLOCK_WARMUP, days: "both", order: 1, exercise: "Bici estática", left: "2-3 min", right: "-", notes: "Activación metabólica suave" },
+  { block: BLOCK_WARMUP, days: "both", order: 2, exercise: "Movilidad articular", left: "2x6", right: "-", notes: "Según indicación del médico" },
+  { block: BLOCK_WARMUP, days: "both", order: 3, exercise: "Crunch corto (rodillas flexionadas)", left: "10 reps", right: "-", notes: "Abdominales cortitos y dedos de manos cruzadas", videoUrl: "https://www.youtube.com/results?search_query=partial+crunch+form" },
+  { block: BLOCK_WARMUP, days: "both", order: 4, exercise: "Retroversión pélvica apretando pelota", left: "10 reps", right: "-", notes: "Envolver y presionar la pelota con la pelvis", videoUrl: "https://www.youtube.com/results?search_query=pelvic+tilt+ball+squeeze" },
+  { block: BLOCK_WARMUP, days: "both", order: 5, exercise: "Crunch con piernas extendidas", left: "10 reps", right: "-", notes: "Abdominales cortitos y dedos de manos cruzadas", videoUrl: "https://www.youtube.com/results?search_query=straight+leg+crunch" },
+  { block: BLOCK_WARMUP, days: "both", order: 6, exercise: "Abducción bilateral con banda parado", left: "3x6 (ambas piernas)", right: "-", notes: "Banda bajo las rodillas, abrir las dos al mismo tiempo", videoUrl: "https://www.youtube.com/results?search_query=banded+hip+abduction" },
+  { block: BLOCK_WARMUP, days: "both", order: 7, exercise: "Presión de rodilla vs pelota en pared (arrodillado, cara externa)", left: "3x6", right: "3x6", notes: "Isométrico: arrodillado con una pierna, empujar con la otra SIN extender", videoUrl: "https://www.youtube.com/results?search_query=isometric+hip+abduction+ball+wall+kneeling" },
+  { block: BLOCK_WARMUP, days: "both", order: 8, exercise: "Almeja (clamshell)", left: "3x6", right: "3x6", notes: "Acostado de lado, apertura de glúteo", videoUrl: "https://www.youtube.com/results?search_query=clamshell+exercise" },
+  { block: BLOCK_WARMUP, days: "both", order: 9, exercise: "Elevación lateral de pierna en step", left: "3x6", right: "3x6", notes: "Agarrado de baranda, pierna colgando, elevar de costado (parte externa). Recordar bajar cadera, subir cadera y despues subir pierna, bajar pierna y recien ahi bajar cadera.", videoUrl: "https://www.youtube.com/results?search_query=standing+hip+abduction+on+step" },
+  { block: BLOCK_WARMUP, days: "both", order: 10, exercise: "Foam roller en TFL", left: "1 min", right: "1 min", notes: "Pasar rodillo por tensor de la fascia lata", videoUrl: "https://www.youtube.com/results?search_query=TFL+foam+rolling" },
+  { block: BLOCK_WARMUP, days: "both", order: 11, exercise: "Elongacion fascia lata", left: '3x10"', right: '3x10"' },
+  { block: BLOCK_DAY_A, days: "A", order: 1, exercise: "TKE bilateral con banda (posición cristo)", left: "3x6 (ambas piernas)", right: "-", notes: "Banda desde adelante que tira las rodillas a flexión. Resistir: extender y mantener las rodillas perpendiculares al piso sin que se flexionen. Tronco adelante, brazos se elevan al extender", videoUrl: "https://www.youtube.com/results?search_query=double+leg+terminal+knee+extension+resistance+band" },
+  { block: BLOCK_DAY_A, days: "A", order: 2, exercise: "TKE unilateral con tronco adelante", left: "3x6", right: "1x6", notes: "Banda detrás de la rodilla tirando desde el frente. Extender la rodilla hacia atrás contra la resistencia. Extender tronco hacia delante cuando extiendo pierna", videoUrl: "https://www.youtube.com/results?search_query=single+leg+terminal+knee+extension+band" },
+  { block: BLOCK_DAY_A, days: "A", order: 3, exercise: "Extensión con pelota DETRÁS de la rodilla", left: "3x6", right: "1x6", notes: "Pelota entre pared y parte posterior de la rodilla. Desde estocada, al subir empujar la rodilla hacia atrás", videoUrl: "https://www.youtube.com/results?search_query=terminal+knee+extension+ball+wall" },
+  { block: BLOCK_DAY_A, days: "A", order: 4, exercise: "Presión con pelota DELANTE de la rodilla", left: "3x6", right: "1x6", notes: "Igual al anterior pero pelota adelante, empujar hacia la pared. Inclinar tronco sobre pelota.", videoUrl: "https://www.youtube.com/results?search_query=isometric+knee+extension+ball+wall" },
+  { block: BLOCK_DAY_A, days: "A", order: 5, exercise: "Presión INTERNA de rodilla vs pelota", left: "3x6", right: "1x6", notes: "De pie (casi sentadilla), presionar con costado interno de la rodilla llevándola atrás. Tronco casi arriba de la pelota", videoUrl: "https://www.youtube.com/results?search_query=isometric+knee+adduction+ball+wall" },
+  { block: BLOCK_DAY_A, days: "A", order: 6, exercise: "Presión EXTERNA de rodilla vs pelota", left: "3x6", right: "1x6", notes: "Ídem anterior con la cara externa de la rodilla. Diferencia con el de entrada en calor: acá de pie y con extensión activa", videoUrl: "https://www.youtube.com/results?search_query=isometric+knee+abduction+ball+wall+standing" },
+  { block: BLOCK_DAY_B, days: "B", order: 1, exercise: "Camilla de cuádriceps + rotación externa + pelota entre pies", left: "6x12", right: "3x12", notes: "Apretar la pelota SOLO con la rodilla que trabaja. Extensión con rotación externa de tibia/pie apuntando 45gr hacia afuera", videoUrl: "https://www.youtube.com/results?search_query=leg+extension+tibial+external+rotation", tracksWeight: true },
+  { block: BLOCK_DAY_B, days: "B", order: 2, exercise: "Sentadilla isométrica 45° en step inclinado + pelota entre rodillas", left: "6x12", right: "3x12", notes: "Torso levemente inclinado, mantener pelota cerrando aductor, apretar con la pierna que trabaja.", videoUrl: "https://www.youtube.com/results?search_query=spanish+squat+ball+squeeze" },
+  { block: BLOCK_DAY_B, days: "B", order: 3, exercise: "Sentadilla lateral con pierna elevada en step", left: "6x12", right: "3x12", notes: "De costado, pie sobre la caja apuntando arriba. La pierna elevada estira aductor/isquio, la de abajo hace mini sentadilla. La lesionada va ARRIBA 6 series. La pierna de abajo apunta para afuera, mas de 90 grados contra la caja, no en la misma direccion que yo veo hacia el frente si no que mas rotado hacia afuera", videoUrl: "https://www.youtube.com/results?search_query=cossack+squat" },
+  { block: BLOCK_DAY_B, days: "B", order: 4, exercise: "GYM: Camilla de cuádriceps excéntrica con tempos", left: "3x6 uniforme + 2x5 oscilado (con frenos) + 1x4 rápido", right: "3x6 uniforme + 2x5 oscilado (con frenos) + 1x4 rápido", notes: "Con rotación externa. Progresión de velocidad dentro de la sesión", videoUrl: "https://www.youtube.com/results?search_query=eccentric+leg+extension+tendinopathy", tracksWeight: true },
+  { block: BLOCK_DAY_B, days: "B", order: 5, exercise: "GYM: Prensa excéntrica (2 arriba / 1 abajo)", left: "3x6 uniforme + 2x5 oscilado + 1x4 rápido", right: "3x6 uniforme + 2x5 oscilado + 1x4 rápido", notes: "Subir con DOS piernas, bajar controlado con UNA (excéntrico)", videoUrl: "https://www.youtube.com/results?search_query=eccentric+leg+press+two+up+one+down", tracksWeight: true },
+  { block: BLOCK_STRETCH, days: "both", order: 1, exercise: "Gemelos", left: "3x10 seg", right: "3x10 seg", videoUrl: "https://www.youtube.com/results?search_query=standing+calf+stretch+wall" },
+  { block: BLOCK_STRETCH, days: "both", order: 2, exercise: "Glúteo sentado", left: "3x10 seg", right: "3x10 seg", notes: "Trayendo rodilla al pecho cruzado", videoUrl: "https://www.youtube.com/results?search_query=seated+glute+stretch+figure+4" },
+  { block: BLOCK_STRETCH, days: "both", order: 3, exercise: "Isquios mano cruzada", left: "3x10 seg", right: "3x10 seg", videoUrl: "https://www.youtube.com/results?search_query=standing+hamstring+stretch+crossed+legs" },
+  { block: BLOCK_STRETCH, days: "both", order: 4, exercise: "Cuádriceps con pie en baranda", left: "3x10 seg", right: "3x10 seg", videoUrl: "https://www.youtube.com/results?search_query=standing+quad+stretch+foot+elevated+couch+stretch" },
+  { block: BLOCK_STRETCH, days: "both", order: 5, exercise: "Aductores", left: "3x10 seg", right: "3x10 seg", videoUrl: "https://www.youtube.com/results?search_query=standing+adductor+stretch" },
+  { block: BLOCK_STRETCH, days: "both", order: 6, exercise: "Cuádriceps girando tronco hacia adelante", left: "3x10 seg", right: "3x10 seg", notes: "Variante que sesga TFL/recto femoral (coherente con tu TFL acortado)", videoUrl: "https://www.youtube.com/results?search_query=standing+quad+stretch+forward+trunk+lean" },
+];
 
 export interface ExcelPlanRow {
   monthLabel: string;

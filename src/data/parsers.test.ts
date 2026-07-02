@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { getAvailableMonths, getDefaultMonthId, buildSeedData } from "./seed";
-import { buildCurrentLegExercises, buildWorkoutTemplates, parseExcelUpperRows, parsePdfPlan } from "./parsers";
-import { PDF_PLAN_TEXT, UPPER_MONTH_ROWS } from "./sourceData";
+import { buildRehabExercises, buildWorkoutTemplates, parseExcelUpperRows } from "./parsers";
+import { REHAB_PLAN_ROWS, UPPER_MONTH_ROWS } from "./sourceData";
 import { exerciseId } from "../lib/ids";
 
 const EXPECTED_UPPER_COUNTS = {
@@ -11,30 +11,70 @@ const EXPECTED_UPPER_COUNTS = {
   "Agosto 2026": { 1: 8, 2: 8 },
 } as const;
 
-describe("data seed", () => {
-  it("parses the PDF as the only fixed leg plan with videos", () => {
-    const exercises = parsePdfPlan(PDF_PLAN_TEXT);
+const WEIGHTED_EXERCISES = [
+  "Camilla de cuádriceps + rotación externa + pelota entre pies",
+  "GYM: Camilla de cuádriceps excéntrica con tempos",
+  "GYM: Prensa excéntrica (2 arriba / 1 abajo)",
+];
 
-    expect(exercises.map((exercise) => exercise.name)).toEqual([
-      "Sentadilla con cinto ruso isométrico",
-      "Sentadilla con barra",
-      "Extensores de rodilla unilateral",
-      "Prensa",
-      "Bulgara front",
-      "Peso muerto c/rotación",
-    ]);
-    expect(exercises.find((exercise) => exercise.name === "Sentadilla con barra")).toMatchObject({
-      series: 4,
-      reps: "6",
-      videoUrl: "https://youtu.be/8tCHW2IJ5UY",
-      effortTarget: "7-8",
+describe("data seed", () => {
+  it("builds the rehab plan with every sheet field preserved", () => {
+    const exercises = buildRehabExercises(REHAB_PLAN_ROWS);
+
+    expect(exercises).toHaveLength(28);
+    expect(exercises.every((exercise) => exercise.group === "Pierna" && exercise.source === "leg-rehab")).toBe(true);
+
+    const stepRaise = exercises.find((exercise) => exercise.name === "Elevación lateral de pierna en step");
+    expect(stepRaise).toMatchObject({
+      block: "1. Entrada en calor + core (todos los días)",
+      prescriptionLeft: "3x6",
+      prescriptionRight: "3x6",
+      tracksWeight: false,
+      videoUrl: "https://www.youtube.com/results?search_query=standing+hip+abduction+on+step",
     });
-    expect(exercises.every((exercise) => exercise.videoUrl?.startsWith("http"))).toBe(true);
+    expect(stepRaise?.notes).toContain("Recordar bajar cadera");
+
+    const tke = exercises.find((exercise) => exercise.name === "TKE unilateral con tronco adelante");
+    expect(tke).toMatchObject({ prescriptionLeft: "3x6", prescriptionRight: "1x6" });
+    expect(tke?.notes).toContain("Banda detrás de la rodilla");
+  });
+
+  it("marks weight tracking only on the leg press and quad extension machines", () => {
+    const exercises = buildRehabExercises(REHAB_PLAN_ROWS);
+    const weighted = exercises.filter((exercise) => exercise.tracksWeight).map((exercise) => exercise.name);
+
+    expect(weighted.sort()).toEqual([...WEIGHTED_EXERCISES].sort());
+  });
+
+  it("splits the rehab plan into leg day A and B templates with shared warmup and stretching", () => {
+    const templates = buildWorkoutTemplates(REHAB_PLAN_ROWS, UPPER_MONTH_ROWS);
+    const legA = templates.find((template) => template.type === "leg" && template.legDay === "A");
+    const legB = templates.find((template) => template.type === "leg" && template.legDay === "B");
+
+    expect(legA).toMatchObject({ id: "template-leg-a", name: "Pierna A" });
+    expect(legB).toMatchObject({ id: "template-leg-b", name: "Pierna B" });
+    expect(legA?.exercises).toHaveLength(23);
+    expect(legB?.exercises).toHaveLength(22);
+
+    const blocksA = Array.from(new Set(legA?.exercises.map((item) => item.block)));
+    const blocksB = Array.from(new Set(legB?.exercises.map((item) => item.block)));
+    expect(blocksA).toEqual([
+      "1. Entrada en calor + core (todos los días)",
+      "2. Rodilla Día A (3x/semana) — Control de extensión",
+      "4. Elongación (todos los días, post A y B)",
+    ]);
+    expect(blocksB).toEqual([
+      "1. Entrada en calor + core (todos los días)",
+      "3. Rodilla Día B (2x/semana) — Fuerza pesada",
+      "4. Elongación (todos los días, post A y B)",
+    ]);
+
+    expect(legA?.exercises.map((item) => item.order)).toEqual(Array.from({ length: 23 }, (_, index) => index + 1));
+    expect(legB?.exercises.map((item) => item.order)).toEqual(Array.from({ length: 22 }, (_, index) => index + 1));
   });
 
   it("loads all real upper-body months with Superior 1 and Superior 2", () => {
-    const legExercises = buildCurrentLegExercises(PDF_PLAN_TEXT);
-    const templates = buildWorkoutTemplates(legExercises, UPPER_MONTH_ROWS);
+    const templates = buildWorkoutTemplates(REHAB_PLAN_ROWS, UPPER_MONTH_ROWS);
     const months = getAvailableMonths(templates);
 
     expect(months.map((month) => month.label)).toEqual(["Mayo 2026", "Junio 2026", "Julio 2026", "Agosto 2026"]);
@@ -43,7 +83,7 @@ describe("data seed", () => {
       expect(templates.find((template) => template.monthId === month.id && template.upperDay === 1)?.exercises.length).toBe(expected[1]);
       expect(templates.find((template) => template.monthId === month.id && template.upperDay === 2)?.exercises.length).toBe(expected[2]);
     }
-    expect(templates.filter((template) => template.type === "leg")).toHaveLength(1);
+    expect(templates.filter((template) => template.type === "leg")).toHaveLength(2);
   });
 
   it("normalizes reps that Excel stored as dates", () => {
@@ -52,13 +92,14 @@ describe("data seed", () => {
     expect(UPPER_MONTH_ROWS.find((row) => row.exercise === "Plancha lateral c/ remo")?.reps).toBe("8/8");
   });
 
-  it("does not include CSV legacy exercises or lower-body Excel rows", () => {
+  it("does not include the previous tendon plan exercises", () => {
     const seed = buildSeedData();
     const names = seed.exercises.map((exercise) => exercise.name);
 
-    expect(names).not.toContain("Hack 45 vertical u horizontal");
-    expect(names).not.toContain("Sentadilla al cajon con barra");
-    expect(seed.exercises.every((exercise) => exercise.source === "pdf-current" || exercise.source === "excel-upper")).toBe(true);
+    expect(names).not.toContain("Sentadilla con cinto ruso isométrico");
+    expect(names).not.toContain("Bulgara front");
+    expect(names).not.toContain("Peso muerto c/rotación");
+    expect(seed.exercises.every((exercise) => exercise.source === "leg-rehab" || exercise.source === "excel-upper")).toBe(true);
   });
 
   it("chooses the calendar month when available, then falls back to latest", () => {
@@ -69,8 +110,7 @@ describe("data seed", () => {
   });
 
   it("keeps monthly prescriptions on template rows instead of global exercises", () => {
-    const legExercises = buildCurrentLegExercises(PDF_PLAN_TEXT);
-    const templates = buildWorkoutTemplates(legExercises, UPPER_MONTH_ROWS);
+    const templates = buildWorkoutTemplates(REHAB_PLAN_ROWS, UPPER_MONTH_ROWS);
     const augustPress = templates
       .find((template) => template.monthId === "agosto-2026" && template.upperDay === 1)
       ?.exercises.find((item) => item.weightHint === "25/27,5/30");
@@ -80,8 +120,7 @@ describe("data seed", () => {
   });
 
   it("preserves every Excel row prescription in its monthly template", () => {
-    const legExercises = buildCurrentLegExercises(PDF_PLAN_TEXT);
-    const templates = buildWorkoutTemplates(legExercises, UPPER_MONTH_ROWS);
+    const templates = buildWorkoutTemplates(REHAB_PLAN_ROWS, UPPER_MONTH_ROWS);
 
     for (const row of UPPER_MONTH_ROWS) {
       const template = templates.find(

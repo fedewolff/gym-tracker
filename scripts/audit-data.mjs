@@ -7,12 +7,14 @@ import { fileURLToPath } from "node:url";
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const sourceDataPath = path.join(repoRoot, "src/data/sourceData.ts");
 const xlsxPath = process.env.GYM_AUDIT_XLSX ?? "/Users/fedewolff/Downloads/Plan Futbol  FW (1).xlsx";
-const pdfPath = process.env.GYM_AUDIT_PDF ?? "/Users/fedewolff/Downloads/Fede.pdf";
+const rehabCsvPath =
+  process.env.GYM_AUDIT_REHAB_CSV ??
+  "/Users/fedewolff/Downloads/1. Plan Rehabilitación Rodilla — Fede (30_06 → 30_07) - Untitled (1).csv";
 const bundledPython = "/Users/fedewolff/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3";
 const pythonPath = process.env.GYM_AUDIT_PYTHON ?? (existsSync(bundledPython) ? bundledPython : "python3");
 
 const rowFields = ["monthLabel", "day", "order", "exercise", "block", "series", "reps", "weight", "effort"];
-const pdfFields = ["name", "prescription", "series", "reps", "tempo", "effortTarget", "videoUrl", "notes"];
+const rehabFields = ["block", "order", "exercise", "left", "right", "notes", "videoUrl"];
 const expectedCounts = {
   "Mayo 2026": { 1: 8, 2: 8 },
   "Junio 2026": { 1: 9, 2: 9 },
@@ -34,15 +36,15 @@ function assertFileExists(filePath, label) {
 
 function extractSourceData() {
   const text = readFileSync(sourceDataPath, "utf8");
-  const pdfMatch = text.match(/export const PDF_PLAN_TEXT = `([\s\S]*?)`;/);
+  const rehabMatch = text.match(/(const BLOCK_WARMUP[\s\S]*?)export const REHAB_PLAN_ROWS: RehabPlanRow\[\] = (\[[\s\S]*?\n\]);/);
   const rowsMatch = text.match(/export const UPPER_MONTH_ROWS: ExcelPlanRow\[\] = (\[[\s\S]*?\n\]);/);
 
-  if (!pdfMatch || !rowsMatch) {
-    throw new Error("Could not read PDF_PLAN_TEXT or UPPER_MONTH_ROWS from sourceData.ts");
+  if (!rehabMatch || !rowsMatch) {
+    throw new Error("Could not read REHAB_PLAN_ROWS or UPPER_MONTH_ROWS from sourceData.ts");
   }
 
   return {
-    pdfText: pdfMatch[1],
+    rehabRows: Function(`"use strict"; ${rehabMatch[1]} return (${rehabMatch[2]});`)(),
     upperRows: Function(`"use strict"; return (${rowsMatch[1]});`)(),
   };
 }
@@ -58,71 +60,99 @@ function normalizeSearch(value) {
     .toLowerCase();
 }
 
-function parsePrescription(prescription) {
-  const seriesMatch = prescription.match(/(\d+)\s*x\s*(\d+)\s*rep(?:\s*(c\/lado))?/i);
-  const singleMatch = prescription.match(/(\d+)\s*rep/i);
-  const tempoMatch = prescription.match(/\(([^)]+)\)/);
+function parseCsv(text) {
+  const rows = [];
+  let row = [];
+  let field = "";
+  let inQuotes = false;
 
-  if (seriesMatch) {
-    return {
-      series: Number(seriesMatch[1]),
-      reps: `${seriesMatch[2]}${seriesMatch[3] ? " c/lado" : ""}`,
-      tempo: tempoMatch ? clean(tempoMatch[1]) : undefined,
-    };
-  }
-
-  return {
-    series: 1,
-    reps: singleMatch ? singleMatch[1] : "",
-    tempo: prescription.includes("manteniendo") ? clean(prescription.replace(/^\d+\s*rep\s*/i, "")) : undefined,
-  };
-}
-
-function parsePdfPlan(text) {
-  const lines = text
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean);
-  const exercises = [];
-
-  for (let index = 0; index < lines.length; index += 1) {
-    const line = lines[index];
-    const lowerLine = normalizeSearch(line);
-    if (
-      !line.includes(":") ||
-      lowerLine.startsWith("fede:") ||
-      lowerLine.startsWith("programa") ||
-      lowerLine.startsWith("pausa") ||
-      lowerLine.startsWith("percepcion") ||
-      /^https?:\/\//i.test(line)
-    ) {
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+    if (inQuotes) {
+      if (char === '"' && text[index + 1] === '"') {
+        field += '"';
+        index += 1;
+      } else if (char === '"') {
+        inQuotes = false;
+      } else {
+        field += char;
+      }
       continue;
     }
 
-    const [rawName, ...rest] = line.split(":");
-    const name = clean(rawName);
-    const prescription = clean(rest.join(":"));
-    const lookahead = lines.slice(index + 1, index + 5);
-    const videoUrl = lookahead.find((candidate) => /^https?:\/\//i.test(candidate));
-    if (!videoUrl) continue;
-
-    const effortLine = lookahead.find((candidate) => normalizeSearch(candidate).includes("percepcion de esfuerzo"));
-    const pauseLine = lookahead.find((candidate) => normalizeSearch(candidate).startsWith("pausa"));
-    const parsed = parsePrescription(prescription);
-
-    exercises.push({
-      name,
-      prescription,
-      series: parsed.series,
-      reps: parsed.reps,
-      tempo: parsed.tempo,
-      effortTarget: effortLine?.split(":").slice(1).join(":").trim(),
-      videoUrl,
-      notes: pauseLine,
-    });
+    if (char === '"') {
+      inQuotes = true;
+    } else if (char === ",") {
+      row.push(field);
+      field = "";
+    } else if (char === "\n" || char === "\r") {
+      if (char === "\r" && text[index + 1] === "\n") index += 1;
+      row.push(field);
+      field = "";
+      if (row.some((value) => value.trim() !== "")) rows.push(row);
+      row = [];
+    } else {
+      field += char;
+    }
   }
+  if (field !== "" || row.length) {
+    row.push(field);
+    if (row.some((value) => value.trim() !== "")) rows.push(row);
+  }
+  return rows;
+}
 
-  return exercises;
+function parseRehabCsv(text) {
+  const [, ...rows] = parseCsv(text);
+  return rows.map((cells) => {
+    const [block, order, exercise, left, right, notes, videoUrl] = cells.map((value) => clean(value).replace(/\\$/, ""));
+    return {
+      // The sheet titles blocks in caps and labels day A "Control de extensión terminal" only on its first row.
+      block: block.replace(/ terminal$/i, ""),
+      order: Number(order),
+      exercise,
+      left,
+      right,
+      notes,
+      videoUrl,
+    };
+  });
+}
+
+function diffRehabRows(csvRows, appRows) {
+  const diffs = [];
+  const max = Math.max(csvRows.length, appRows.length);
+  for (let index = 0; index < max; index += 1) {
+    const csv = csvRows[index];
+    const app = appRows[index];
+    if (!csv || !app) {
+      diffs.push({
+        row: index + 1,
+        key: csv ? `${csv.block} #${csv.order} ${csv.exercise}` : "missing CSV row",
+        field: "row",
+        csv: csv ?? null,
+        app: app ?? null,
+      });
+      continue;
+    }
+
+    for (const field of rehabFields) {
+      const csvValue = valueForCompare(csv[field]);
+      const appValue = valueForCompare(app[field]);
+      // Block names differ only in casing between the sheet and the app.
+      const matches = field === "block" ? normalizeSearch(csvValue) === normalizeSearch(appValue) : clean(csvValue) === clean(appValue);
+      if (!matches) {
+        diffs.push({
+          row: index + 1,
+          key: `${csv.block} #${csv.order} ${csv.exercise}`,
+          field,
+          csv: csv[field] ?? "",
+          app: app[field] ?? "",
+        });
+      }
+    }
+  }
+  return diffs;
 }
 
 function valueForCompare(value) {
@@ -170,38 +200,6 @@ function diffRows(actualRows, appRows) {
   return diffs;
 }
 
-function diffPdfExercises(actualExercises, appExercises) {
-  const diffs = [];
-  const max = Math.max(actualExercises.length, appExercises.length);
-  for (let index = 0; index < max; index += 1) {
-    const actual = actualExercises[index];
-    const app = appExercises[index];
-    if (!actual || !app) {
-      diffs.push({
-        row: index + 1,
-        key: actual?.name ?? "missing PDF exercise",
-        field: "exercise",
-        pdf: actual ?? null,
-        app: app ?? null,
-      });
-      continue;
-    }
-
-    for (const field of pdfFields) {
-      if (valueForCompare(actual[field]) !== valueForCompare(app[field])) {
-        diffs.push({
-          row: index + 1,
-          key: actual.name,
-          field,
-          pdf: actual[field] ?? "",
-          app: app[field] ?? "",
-        });
-      }
-    }
-  }
-  return diffs;
-}
-
 function validateCounts(counts) {
   const diffs = [];
   for (const [monthLabel, dayCounts] of Object.entries(expectedCounts)) {
@@ -219,7 +217,7 @@ function printDiffs(title, diffs) {
   if (!diffs.length) return;
   console.error(`\n${title}`);
   for (const diff of diffs.slice(0, 50)) {
-    console.error(`- ${diff.key} [${diff.field}]: source=${JSON.stringify(diff.excel ?? diff.pdf)} app=${JSON.stringify(diff.app)}`);
+    console.error(`- ${diff.key} [${diff.field}]: source=${JSON.stringify(diff.excel ?? diff.csv)} app=${JSON.stringify(diff.app)}`);
   }
   if (diffs.length > 50) {
     console.error(`- ...and ${diffs.length - 50} more differences`);
@@ -234,12 +232,11 @@ import sys
 
 try:
     import openpyxl
-    import pdfplumber
 except ModuleNotFoundError as exc:
     print(json.dumps({"error": f"Missing Python module: {exc.name}"}))
     sys.exit(2)
 
-xlsx_path, pdf_path = sys.argv[1], sys.argv[2]
+xlsx_path = sys.argv[1]
 
 def norm(value):
     if value is None:
@@ -337,18 +334,15 @@ def extract_upper_rows():
             rows.append(row)
     return rows
 
-with pdfplumber.open(pdf_path) as pdf:
-    pdf_text = "\n".join(page.extract_text() or "" for page in pdf.pages)
-
-print(json.dumps({"excelRows": extract_upper_rows(), "pdfText": pdf_text}, ensure_ascii=False))
+print(json.dumps({"excelRows": extract_upper_rows()}, ensure_ascii=False))
 `;
 
 assertFileExists(sourceDataPath, "sourceData.ts");
 assertFileExists(xlsxPath, "Excel source");
-assertFileExists(pdfPath, "PDF source");
+assertFileExists(rehabCsvPath, "Rehab plan CSV source");
 
 const sourceData = extractSourceData();
-const pythonResult = spawnSync(pythonPath, ["-c", pythonProgram, xlsxPath, pdfPath], {
+const pythonResult = spawnSync(pythonPath, ["-c", pythonProgram, xlsxPath], {
   cwd: repoRoot,
   encoding: "utf8",
   maxBuffer: 10 * 1024 * 1024,
@@ -366,21 +360,22 @@ if (pythonResult.status !== 0) {
 }
 
 const extracted = JSON.parse(pythonResult.stdout);
+const csvRehabRows = parseRehabCsv(readFileSync(rehabCsvPath, "utf8"));
 const countDiffs = validateCounts(countByMonthAndDay(extracted.excelRows));
 const rowDiffs = diffRows(extracted.excelRows, sourceData.upperRows);
-const pdfDiffs = diffPdfExercises(parsePdfPlan(extracted.pdfText), parsePdfPlan(sourceData.pdfText));
+const rehabDiffs = diffRehabRows(csvRehabRows, sourceData.rehabRows);
 
-if (countDiffs.length || rowDiffs.length || pdfDiffs.length) {
+if (countDiffs.length || rowDiffs.length || rehabDiffs.length) {
   if (countDiffs.length) {
     console.error("\nMonthly count differences");
     for (const diff of countDiffs) console.error(`- ${diff}`);
   }
   printDiffs("Excel row differences", rowDiffs);
-  printDiffs("PDF leg plan differences", pdfDiffs);
+  printDiffs("Rehab plan CSV differences", rehabDiffs);
   fail("source files do not match app seed");
   process.exit(1);
 }
 
 console.log("Data audit passed");
 console.log(`- Excel upper rows: ${extracted.excelRows.length}`);
-console.log(`- PDF leg exercises: ${parsePdfPlan(extracted.pdfText).length}`);
+console.log(`- Rehab leg exercises: ${csvRehabRows.length}`);

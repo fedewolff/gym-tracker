@@ -1,5 +1,5 @@
 import Dexie, { type Table } from "dexie";
-import type { BackupPayload, Exercise, MetaRecord, SetEntry, WorkoutSession, WorkoutTemplate } from "../types";
+import type { BackupPayload, Exercise, ExerciseCheck, MetaRecord, SetEntry, WorkoutSession, WorkoutTemplate } from "../types";
 import { buildSeedData, SEED_VERSION } from "../data/seed";
 import { argentinaTimestamp } from "./dates";
 
@@ -8,6 +8,7 @@ export class GymDatabase extends Dexie {
   templates!: Table<WorkoutTemplate, string>;
   sessions!: Table<WorkoutSession, string>;
   setEntries!: Table<SetEntry, string>;
+  exerciseChecks!: Table<ExerciseCheck, string>;
   meta!: Table<MetaRecord, string>;
 
   constructor() {
@@ -24,6 +25,14 @@ export class GymDatabase extends Dexie {
       templates: "id, type, monthId, upperDay",
       sessions: "id, date, templateId",
       setEntries: "id, sessionId, exerciseId, date",
+      meta: "key",
+    });
+    this.version(3).stores({
+      exercises: "id, name, group, source, activeInRoutine",
+      templates: "id, type, monthId, upperDay",
+      sessions: "id, date, templateId",
+      setEntries: "id, sessionId, exerciseId, date",
+      exerciseChecks: "id, date, templateId, exerciseId",
       meta: "key",
     });
   }
@@ -67,21 +76,23 @@ export async function ensureArgentinaTimestamps(): Promise<void> {
 }
 
 export async function exportBackup(): Promise<BackupPayload> {
-  const [exercises, templates, sessions, setEntries, meta] = await Promise.all([
+  const [exercises, templates, sessions, setEntries, exerciseChecks, meta] = await Promise.all([
     db.exercises.toArray(),
     db.templates.toArray(),
     db.sessions.toArray(),
     db.setEntries.toArray(),
+    db.exerciseChecks.toArray(),
     db.meta.toArray(),
   ]);
 
   return {
-    version: 1,
+    version: 2,
     exportedAt: argentinaTimestamp(),
     exercises,
     templates,
     sessions,
     setEntries,
+    exerciseChecks,
     meta,
   };
 }
@@ -91,16 +102,18 @@ export async function importBackup(payload: BackupPayload): Promise<void> {
     throw new Error("Backup invalido");
   }
 
-  await db.transaction("rw", db.exercises, db.templates, db.sessions, db.setEntries, db.meta, async () => {
+  await db.transaction("rw", [db.exercises, db.templates, db.sessions, db.setEntries, db.exerciseChecks, db.meta], async () => {
     await db.exercises.clear();
     await db.templates.clear();
     await db.sessions.clear();
     await db.setEntries.clear();
+    await db.exerciseChecks.clear();
     await db.meta.clear();
     await db.exercises.bulkPut(payload.exercises);
     await db.templates.bulkPut(payload.templates);
     await db.sessions.bulkPut((payload.sessions ?? []).map(normalizeCreatedAt));
     await db.setEntries.bulkPut(payload.setEntries ?? []);
+    await db.exerciseChecks.bulkPut(payload.exerciseChecks ?? []);
     await db.meta.bulkPut((payload.meta ?? []).filter((record) => record.key !== "seedVersion"));
   });
 

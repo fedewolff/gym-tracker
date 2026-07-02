@@ -25,7 +25,18 @@ import {
   isQuickSession,
 } from "./lib/trainingCalendar";
 import { extractWeightNumber } from "./lib/weights";
-import type { BackupPayload, Exercise, MobilitySlot, SetEntry, TrainingType, WorkoutSession, WorkoutTemplate, WorkoutTemplateExercise } from "./types";
+import type {
+  BackupPayload,
+  Exercise,
+  ExerciseCheck,
+  LegDay,
+  MobilitySlot,
+  SetEntry,
+  TrainingType,
+  WorkoutSession,
+  WorkoutTemplate,
+  WorkoutTemplateExercise,
+} from "./types";
 
 type View = "train" | "progress" | "exercises" | "settings";
 type WorkoutKind = "leg" | "upper" | "mobility";
@@ -35,6 +46,7 @@ interface AppData {
   templates: WorkoutTemplate[];
   sessions: WorkoutSession[];
   setEntries: SetEntry[];
+  exerciseChecks: ExerciseCheck[];
 }
 
 interface DraftSet {
@@ -78,21 +90,46 @@ function exerciseProgressKey(item: WorkoutTemplateExercise): string {
   return `${item.order}:${item.exerciseId}`;
 }
 
+function exerciseCheckId(date: string, templateId: string, item: WorkoutTemplateExercise): string {
+  return `check-${date}-${templateId}-${item.order}-${item.exerciseId}`;
+}
+
+function buildExerciseCheck(date: string, templateId: string, item: WorkoutTemplateExercise): ExerciseCheck {
+  return {
+    id: exerciseCheckId(date, templateId, item),
+    date,
+    templateId,
+    exerciseId: item.exerciseId,
+    order: item.order,
+    createdAt: argentinaTimestamp(),
+  };
+}
+
+function legPrescription(exercise: Exercise): string {
+  if (!exercise.prescriptionLeft) return "";
+  if (exercise.prescriptionRight && exercise.prescriptionRight !== "-") {
+    return `IZQ (lesionada) ${exercise.prescriptionLeft} · DER ${exercise.prescriptionRight}`;
+  }
+  return exercise.prescriptionLeft;
+}
+
 export default function App() {
   const [view, setView] = useState<View>("train");
   const [workoutKind, setWorkoutKind] = useState<WorkoutKind>("leg");
   const [selectedMonthId, setSelectedMonthId] = useState("");
   const [selectedUpperDay, setSelectedUpperDay] = useState<1 | 2>(1);
-  const [data, setData] = useState<AppData>({ exercises: [], templates: [], sessions: [], setEntries: [] });
+  const [selectedLegDay, setSelectedLegDay] = useState<LegDay>("A");
+  const [data, setData] = useState<AppData>({ exercises: [], templates: [], sessions: [], setEntries: [], exerciseChecks: [] });
   const [isReady, setIsReady] = useState(false);
   const [status, setStatus] = useState("");
 
   const loadData = useCallback(async () => {
-    const [exercises, templates, sessions, setEntries] = await Promise.all([
+    const [exercises, templates, sessions, setEntries, exerciseChecks] = await Promise.all([
       db.exercises.toArray(),
       db.templates.toArray(),
       db.sessions.toArray(),
       db.setEntries.toArray(),
+      db.exerciseChecks.toArray(),
     ]);
     const sortedExercises = exercises.sort((a, b) => a.name.localeCompare(b.name, "es"));
     const sortedTemplates = templates.sort((a, b) => a.id.localeCompare(b.id));
@@ -102,6 +139,7 @@ export default function App() {
       templates: sortedTemplates,
       sessions: sessions.sort((a, b) => b.date.localeCompare(a.date)),
       setEntries,
+      exerciseChecks,
     });
     setSelectedMonthId((current) => current || getDefaultMonthId(sortedTemplates));
   }, []);
@@ -119,7 +157,7 @@ export default function App() {
 
   const exerciseById = useMemo(() => new Map(data.exercises.map((exercise) => [exercise.id, exercise])), [data.exercises]);
   const months = useMemo(() => getAvailableMonths(data.templates), [data.templates]);
-  const legTemplate = data.templates.find((template) => template.type === "leg");
+  const legTemplate = data.templates.find((template) => template.type === "leg" && template.legDay === selectedLegDay);
   const upperTemplate = data.templates.find(
     (template) => template.type === "upper" && template.monthId === selectedMonthId && template.upperDay === selectedUpperDay,
   );
@@ -153,12 +191,26 @@ export default function App() {
         })),
     );
 
-    await db.transaction("rw", db.sessions, db.setEntries, async () => {
+    const checks = template.exercises.map((item) => buildExerciseCheck(date, template.id, item));
+
+    await db.transaction("rw", db.sessions, db.setEntries, db.exerciseChecks, async () => {
       await db.sessions.put(session);
       if (entries.length) await db.setEntries.bulkPut(entries);
+      await db.exerciseChecks.bulkPut(checks);
     });
     await loadData();
     setStatus("Entrenamiento guardado");
+  };
+
+  const toggleExerciseCheck = async (template: WorkoutTemplate, date: string, item: WorkoutTemplateExercise) => {
+    const checkId = exerciseCheckId(date, template.id, item);
+    const existing = await db.exerciseChecks.get(checkId);
+    if (existing) {
+      await db.exerciseChecks.delete(checkId);
+    } else {
+      await db.exerciseChecks.put(buildExerciseCheck(date, template.id, item));
+    }
+    await loadData();
   };
 
   const toggleHeatmapTraining = async (date: string, trainingType: TrainingType) => {
@@ -294,10 +346,14 @@ export default function App() {
             setSelectedMonthId={setSelectedMonthId}
             selectedUpperDay={selectedUpperDay}
             setSelectedUpperDay={setSelectedUpperDay}
+            selectedLegDay={selectedLegDay}
+            setSelectedLegDay={setSelectedLegDay}
             exerciseById={exerciseById}
             sessions={data.sessions}
             setEntries={data.setEntries}
+            exerciseChecks={data.exerciseChecks}
             onSave={saveWorkout}
+            onToggleCheck={toggleExerciseCheck}
           />
         ) : null}
         {view === "progress" ? (
@@ -337,10 +393,14 @@ function TrainView({
   setSelectedMonthId,
   selectedUpperDay,
   setSelectedUpperDay,
+  selectedLegDay,
+  setSelectedLegDay,
   exerciseById,
   sessions,
   setEntries,
+  exerciseChecks,
   onSave,
+  onToggleCheck,
 }: {
   template: WorkoutTemplate;
   workoutKind: WorkoutKind;
@@ -350,23 +410,38 @@ function TrainView({
   setSelectedMonthId: (monthId: string) => void;
   selectedUpperDay: 1 | 2;
   setSelectedUpperDay: (day: 1 | 2) => void;
+  selectedLegDay: LegDay;
+  setSelectedLegDay: (day: LegDay) => void;
   exerciseById: Map<string, Exercise>;
   sessions: WorkoutSession[];
   setEntries: SetEntry[];
+  exerciseChecks: ExerciseCheck[];
   onSave: (template: WorkoutTemplate, date: string, painLevel: number | undefined, draft: WorkoutDraft) => Promise<void>;
+  onToggleCheck: (template: WorkoutTemplate, date: string, item: WorkoutTemplateExercise) => Promise<void>;
 }) {
   const [date, setDate] = useState(todayIso);
   const [painLevel, setPainLevel] = useState("0");
   const [draft, setDraft] = useState<WorkoutDraft>({});
-  const [completedExerciseKeys, setCompletedExerciseKeys] = useState<Set<string>>(new Set());
   const [isSaving, setIsSaving] = useState(false);
+  const isLegPlan = template.type === "leg";
+
+  const completedExerciseKeys = useMemo(
+    () =>
+      new Set(
+        exerciseChecks
+          .filter((check) => check.date === date && check.templateId === template.id)
+          .map((check) => `${check.order}:${check.exerciseId}`),
+      ),
+    [date, exerciseChecks, template.id],
+  );
 
   useEffect(() => {
     const nextDraft: WorkoutDraft = {};
     for (const item of template.exercises) {
       const exercise = exerciseById.get(item.exerciseId);
       if (!exercise) continue;
-      const series = item.targetSeries ?? exercise.targetSeries ?? 1;
+      if (isLegPlan && !exercise.tracksWeight) continue;
+      const series = isLegPlan ? 1 : item.targetSeries ?? exercise.targetSeries ?? 1;
       const latestBySet = getLatestSetsByNumber(exercise.id, sessions, setEntries);
       const fallback = getLatestAnySet(exercise.id, sessions, setEntries);
 
@@ -376,17 +451,13 @@ function TrainView({
         return {
           setNumber,
           weightText: latest?.weightText ?? item.weightHint ?? "",
-          reps: latest?.reps ?? item.targetReps ?? exercise.targetReps ?? "",
-          effort: latest?.effort ?? item.effortTarget ?? "",
+          reps: isLegPlan ? "" : latest?.reps ?? item.targetReps ?? exercise.targetReps ?? "",
+          effort: isLegPlan ? "" : latest?.effort ?? item.effortTarget ?? "",
         };
       });
     }
     setDraft(nextDraft);
-  }, [exerciseById, sessions, setEntries, template]);
-
-  useEffect(() => {
-    setCompletedExerciseKeys(new Set());
-  }, [date, template.id]);
+  }, [exerciseById, isLegPlan, sessions, setEntries, template]);
 
   const updateSet = (exerciseId: string, setNumber: number, patch: Partial<DraftSet>) => {
     setDraft((current) => ({
@@ -396,7 +467,7 @@ function TrainView({
   };
 
   const resetToLatest = (exercise: Exercise, item: WorkoutTemplateExercise) => {
-    const series = item.targetSeries ?? exercise.targetSeries ?? 1;
+    const series = isLegPlan ? 1 : item.targetSeries ?? exercise.targetSeries ?? 1;
     const latestBySet = getLatestSetsByNumber(exercise.id, sessions, setEntries);
     const fallback = getLatestAnySet(exercise.id, sessions, setEntries);
     setDraft((current) => ({
@@ -407,8 +478,8 @@ function TrainView({
         return {
           setNumber,
           weightText: latest?.weightText ?? item.weightHint ?? "",
-          reps: latest?.reps ?? item.targetReps ?? exercise.targetReps ?? "",
-          effort: latest?.effort ?? item.effortTarget ?? "",
+          reps: isLegPlan ? "" : latest?.reps ?? item.targetReps ?? exercise.targetReps ?? "",
+          effort: isLegPlan ? "" : latest?.effort ?? item.effortTarget ?? "",
         };
       }),
     }));
@@ -417,21 +488,7 @@ function TrainView({
   const handleSave = async () => {
     setIsSaving(true);
     await onSave(template, date, Number(painLevel), draft);
-    setCompletedExerciseKeys(new Set(template.exercises.map(exerciseProgressKey)));
     setIsSaving(false);
-  };
-
-  const toggleExerciseComplete = (item: WorkoutTemplateExercise) => {
-    const key = exerciseProgressKey(item);
-    setCompletedExerciseKeys((current) => {
-      const next = new Set(current);
-      if (next.has(key)) {
-        next.delete(key);
-      } else {
-        next.add(key);
-      }
-      return next;
-    });
   };
 
   const totalExercises = template.exercises.length;
@@ -486,12 +543,24 @@ function TrainView({
             </label>
           </div>
         ) : null}
+
+        {workoutKind === "leg" ? (
+          <div className="control-row">
+            <label>
+              Día
+              <select value={selectedLegDay} onChange={(event) => setSelectedLegDay(event.target.value as LegDay)}>
+                <option value="A">Día A · Control de extensión (3x/semana)</option>
+                <option value="B">Día B · Fuerza pesada (2x/semana)</option>
+              </select>
+            </label>
+          </div>
+        ) : null}
       </div>
 
       {Number(painLevel) > 3 ? <div className="pain-warning">Dolor mayor a 3 registrado</div> : null}
 
       <div className="routine-title">
-        <span>{template.monthLabel ?? "Plan tendón"}</span>
+        <span>{isLegPlan ? "Rehabilitación rodilla (30/06 → 30/07)" : template.monthLabel ?? "Plan tendón"}</span>
         <h2>{template.name}</h2>
       </div>
 
@@ -506,70 +575,88 @@ function TrainView({
       </div>
 
       <div className="exercise-list">
-        {template.exercises.map((item) => {
+        {template.exercises.map((item, index) => {
           const exercise = exerciseById.get(item.exerciseId);
           if (!exercise) return null;
           const sets = draft[exercise.id] ?? [];
           const isComplete = completedExerciseKeys.has(exerciseProgressKey(item));
+          const previousBlock = index > 0 ? template.exercises[index - 1].block : undefined;
+          const showBlockHeader = isLegPlan && item.block !== previousBlock;
+          const hasInputs = !isLegPlan || Boolean(exercise.tracksWeight);
           return (
-            <article className={mergeClass("exercise-row", isComplete && "exercise-row-complete")} key={`${template.id}-${item.order}-${exercise.id}`}>
-              <div className="exercise-summary">
-                <div>
-                  <span>{item.block}</span>
-                  <h3>{exercise.name}</h3>
-                  <p>
-                    {seriesLabel(item.targetSeries ?? exercise.targetSeries)} {item.targetReps ?? exercise.targetReps ?? ""}{" "}
-                    {exercise.tempo ? `· ${exercise.tempo}` : ""}
-                  </p>
-                </div>
-                <div className="exercise-actions">
-                  <button
-                    type="button"
-                    className={mergeClass("complete-button", isComplete && "complete-button-active")}
-                    onClick={() => toggleExerciseComplete(item)}
-                    title={isComplete ? "Marcar pendiente" : "Marcar hecho"}
-                    aria-label={`${exercise.name} hecho`}
-                    aria-pressed={isComplete}
-                  >
-                    <Check size={17} />
-                  </button>
-                  {exercise.videoUrl ? (
-                    <a href={exercise.videoUrl} target="_blank" rel="noreferrer" title="Video">
-                      <Play size={17} />
-                    </a>
-                  ) : null}
-                  <button type="button" onClick={() => resetToLatest(exercise, item)} title="Restaurar último registro">
-                    <RotateCcw size={17} />
-                  </button>
-                </div>
-              </div>
-
-              <div className="sets">
-                {sets.map((set) => (
-                  <div className="set-line" key={set.setNumber}>
-                    <span>{set.setNumber}</span>
-                    <input
-                      aria-label={`${exercise.name} serie ${set.setNumber} peso`}
-                      value={set.weightText}
-                      onChange={(event) => updateSet(exercise.id, set.setNumber, { weightText: event.target.value })}
-                      placeholder="kg"
-                    />
-                    <input
-                      aria-label={`${exercise.name} serie ${set.setNumber} reps`}
-                      value={set.reps}
-                      onChange={(event) => updateSet(exercise.id, set.setNumber, { reps: event.target.value })}
-                      placeholder="reps"
-                    />
-                    <input
-                      aria-label={`${exercise.name} serie ${set.setNumber} esfuerzo`}
-                      value={set.effort}
-                      onChange={(event) => updateSet(exercise.id, set.setNumber, { effort: event.target.value })}
-                      placeholder="RPE"
-                    />
+            <Fragment key={`${template.id}-${item.order}-${exercise.id}`}>
+              {showBlockHeader ? <h3 className="block-heading">{item.block}</h3> : null}
+              <article className={mergeClass("exercise-row", isComplete && "exercise-row-complete")}>
+                <div className="exercise-summary">
+                  <div>
+                    {isLegPlan ? null : <span>{item.block}</span>}
+                    <h3>{exercise.name}</h3>
+                    <p>
+                      {isLegPlan
+                        ? legPrescription(exercise)
+                        : `${seriesLabel(item.targetSeries ?? exercise.targetSeries)} ${item.targetReps ?? exercise.targetReps ?? ""} ${
+                            exercise.tempo ? `· ${exercise.tempo}` : ""
+                          }`}
+                    </p>
+                    {isLegPlan && exercise.notes ? <p className="exercise-notes">{exercise.notes}</p> : null}
                   </div>
-                ))}
-              </div>
-            </article>
+                  <div className="exercise-actions">
+                    <button
+                      type="button"
+                      className={mergeClass("complete-button", isComplete && "complete-button-active")}
+                      onClick={() => onToggleCheck(template, date, item)}
+                      title={isComplete ? "Marcar pendiente" : "Marcar hecho"}
+                      aria-label={`${exercise.name} hecho`}
+                      aria-pressed={isComplete}
+                    >
+                      <Check size={17} />
+                    </button>
+                    {exercise.videoUrl ? (
+                      <a href={exercise.videoUrl} target="_blank" rel="noreferrer" title="Video">
+                        <Play size={17} />
+                      </a>
+                    ) : null}
+                    {hasInputs ? (
+                      <button type="button" onClick={() => resetToLatest(exercise, item)} title="Restaurar último registro">
+                        <RotateCcw size={17} />
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+
+                {hasInputs ? (
+                  <div className="sets">
+                    {sets.map((set) => (
+                      <div className={mergeClass("set-line", isLegPlan && "set-line-weight-only")} key={set.setNumber}>
+                        <span>{isLegPlan ? "kg" : set.setNumber}</span>
+                        <input
+                          aria-label={isLegPlan ? `${exercise.name} peso` : `${exercise.name} serie ${set.setNumber} peso`}
+                          value={set.weightText}
+                          onChange={(event) => updateSet(exercise.id, set.setNumber, { weightText: event.target.value })}
+                          placeholder="kg"
+                        />
+                        {isLegPlan ? null : (
+                          <>
+                            <input
+                              aria-label={`${exercise.name} serie ${set.setNumber} reps`}
+                              value={set.reps}
+                              onChange={(event) => updateSet(exercise.id, set.setNumber, { reps: event.target.value })}
+                              placeholder="reps"
+                            />
+                            <input
+                              aria-label={`${exercise.name} serie ${set.setNumber} esfuerzo`}
+                              value={set.effort}
+                              onChange={(event) => updateSet(exercise.id, set.setNumber, { effort: event.target.value })}
+                              placeholder="RPE"
+                            />
+                          </>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </article>
+            </Fragment>
           );
         })}
       </div>

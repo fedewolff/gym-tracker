@@ -1,95 +1,6 @@
-import type { Exercise, WorkoutTemplate } from "../types";
+import type { Exercise, LegDay, WorkoutTemplate } from "../types";
 import { exerciseId, slugify } from "../lib/ids";
-import type { ExcelPlanRow } from "./sourceData";
-
-interface ParsedPdfExercise {
-  name: string;
-  prescription: string;
-  series: number;
-  reps: string;
-  tempo?: string;
-  effortTarget?: string;
-  videoUrl?: string;
-  notes?: string;
-}
-
-function clean(value: string): string {
-  return value.trim().replace(/\s+/g, " ");
-}
-
-function normalizeSearch(value: string): string {
-  return value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase();
-}
-
-function parsePrescription(prescription: string): Pick<ParsedPdfExercise, "series" | "reps" | "tempo"> {
-  const seriesMatch = prescription.match(/(\d+)\s*x\s*(\d+)\s*rep(?:\s*(c\/lado))?/i);
-  const singleMatch = prescription.match(/(\d+)\s*rep/i);
-  const tempoMatch = prescription.match(/\(([^)]+)\)/);
-
-  if (seriesMatch) {
-    return {
-      series: Number(seriesMatch[1]),
-      reps: `${seriesMatch[2]}${seriesMatch[3] ? " c/lado" : ""}`,
-      tempo: tempoMatch ? clean(tempoMatch[1]) : undefined,
-    };
-  }
-
-  return {
-    series: 1,
-    reps: singleMatch ? singleMatch[1] : "",
-    tempo: prescription.includes("manteniendo") ? clean(prescription.replace(/^\d+\s*rep\s*/i, "")) : undefined,
-  };
-}
-
-export function parsePdfPlan(text: string): ParsedPdfExercise[] {
-  const lines = text
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean);
-  const exercises: ParsedPdfExercise[] = [];
-
-  for (let index = 0; index < lines.length; index += 1) {
-    const line = lines[index];
-    const lowerLine = normalizeSearch(line);
-    if (
-      !line.includes(":") ||
-      lowerLine.startsWith("fede:") ||
-      lowerLine.startsWith("programa") ||
-      lowerLine.startsWith("pausa") ||
-      lowerLine.startsWith("percepcion") ||
-      /^https?:\/\//i.test(line)
-    ) {
-      continue;
-    }
-
-    const [rawName, ...rest] = line.split(":");
-    const name = clean(rawName);
-    const prescription = clean(rest.join(":"));
-    const lookahead = lines.slice(index + 1, index + 5);
-    const videoUrl = lookahead.find((candidate) => /^https?:\/\//i.test(candidate));
-    if (!videoUrl) continue;
-
-    const effortLine = lookahead.find((candidate) => normalizeSearch(candidate).includes("percepcion de esfuerzo"));
-    const pauseLine = lookahead.find((candidate) => normalizeSearch(candidate).startsWith("pausa"));
-    const parsed = parsePrescription(prescription);
-
-    exercises.push({
-      name,
-      prescription,
-      series: parsed.series,
-      reps: parsed.reps,
-      tempo: parsed.tempo,
-      effortTarget: effortLine?.split(":").slice(1).join(":").trim(),
-      videoUrl,
-      notes: pauseLine,
-    });
-  }
-
-  return exercises;
-}
+import type { ExcelPlanRow, RehabPlanRow } from "./sourceData";
 
 export function parseExcelUpperRows(rows: ExcelPlanRow[]): Exercise[] {
   return rows
@@ -104,37 +15,39 @@ export function parseExcelUpperRows(rows: ExcelPlanRow[]): Exercise[] {
     }));
 }
 
-export function buildCurrentLegExercises(pdfText: string): Exercise[] {
-  return parsePdfPlan(pdfText).map((exercise) => ({
-    id: exerciseId(exercise.name),
-    name: exercise.name,
+export function buildRehabExercises(rows: RehabPlanRow[]): Exercise[] {
+  return rows.map((row) => ({
+    id: exerciseId(row.exercise),
+    name: row.exercise,
     group: "Pierna",
-    block: "Plan tendón actual",
-    source: "pdf-current",
+    block: row.block,
+    source: "leg-rehab",
     activeInRoutine: true,
-    videoUrl: exercise.videoUrl,
-    notes: exercise.notes,
-    targetSeries: exercise.series,
-    targetReps: exercise.reps,
-    tempo: exercise.tempo,
-    effortTarget: exercise.effortTarget,
+    videoUrl: row.videoUrl,
+    notes: row.notes,
+    prescriptionLeft: row.left,
+    prescriptionRight: row.right,
+    tracksWeight: row.tracksWeight ?? false,
   }));
 }
 
-export function buildWorkoutTemplates(legExercises: Exercise[], upperRows: ExcelPlanRow[]): WorkoutTemplate[] {
-  const legTemplate: WorkoutTemplate = {
-    id: "template-leg-fixed",
-    name: "Pierna",
+function buildLegTemplate(rows: RehabPlanRow[], legDay: LegDay): WorkoutTemplate {
+  const dayRows = rows.filter((row) => row.days === "both" || row.days === legDay);
+  return {
+    id: `template-leg-${legDay.toLowerCase()}`,
+    name: `Pierna ${legDay}`,
     type: "leg",
-    exercises: legExercises.map((exercise, index) => ({
-      exerciseId: exercise.id,
+    legDay,
+    exercises: dayRows.map((row, index) => ({
+      exerciseId: exerciseId(row.exercise),
       order: index + 1,
-      block: exercise.block,
-      targetSeries: exercise.targetSeries,
-      targetReps: exercise.targetReps,
-      effortTarget: exercise.effortTarget,
+      block: row.block,
     })),
   };
+}
+
+export function buildWorkoutTemplates(rehabRows: RehabPlanRow[], upperRows: ExcelPlanRow[]): WorkoutTemplate[] {
+  const legTemplates = (["A", "B"] as const).map((legDay) => buildLegTemplate(rehabRows, legDay));
 
   const monthLabels = Array.from(new Set(upperRows.map((row) => row.monthLabel)));
   const upperTemplates = monthLabels.flatMap((monthLabel) =>
@@ -163,5 +76,5 @@ export function buildWorkoutTemplates(legExercises: Exercise[], upperRows: Excel
     }),
   );
 
-  return [legTemplate, ...upperTemplates];
+  return [...legTemplates, ...upperTemplates];
 }

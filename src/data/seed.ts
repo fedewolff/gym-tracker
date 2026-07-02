@@ -1,13 +1,13 @@
 import type { Exercise, WorkoutTemplate } from "../types";
-import { PDF_PLAN_TEXT, UPPER_MONTH_ROWS } from "./sourceData";
+import { REHAB_PLAN_ROWS, UPPER_MONTH_ROWS } from "./sourceData";
 import {
-  buildCurrentLegExercises,
+  buildRehabExercises,
   buildWorkoutTemplates,
   parseExcelUpperRows,
 } from "./parsers";
 import { argentinaMonthIndex, argentinaYear } from "../lib/dates";
 
-export const SEED_VERSION = "2026-06-17-v2-reset";
+export const SEED_VERSION = "2026-07-02-v3-rehab";
 
 export interface SeedData {
   exercises: Exercise[];
@@ -26,7 +26,7 @@ function dedupeExercises(exercises: Exercise[]): Exercise[] {
     byId.set(exercise.id, {
       ...existing,
       ...exercise,
-      source: existing.source === "pdf-current" ? existing.source : exercise.source,
+      source: existing.source === "leg-rehab" ? existing.source : exercise.source,
       activeInRoutine: existing.activeInRoutine || exercise.activeInRoutine,
       videoUrl: existing.videoUrl ?? exercise.videoUrl,
       notes: [existing.notes, exercise.notes].filter(Boolean).join(" | ") || undefined,
@@ -36,11 +36,11 @@ function dedupeExercises(exercises: Exercise[]): Exercise[] {
 }
 
 export function buildSeedData(): SeedData {
-  const legExercises = buildCurrentLegExercises(PDF_PLAN_TEXT);
+  const legExercises = buildRehabExercises(REHAB_PLAN_ROWS);
   const upperExercises = parseExcelUpperRows(UPPER_MONTH_ROWS);
 
   const exercises = dedupeExercises([...legExercises, ...upperExercises]);
-  const templates = buildWorkoutTemplates(legExercises, UPPER_MONTH_ROWS);
+  const templates = buildWorkoutTemplates(REHAB_PLAN_ROWS, UPPER_MONTH_ROWS);
 
   return {
     exercises,

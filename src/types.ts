@@ -1,7 +1,8 @@
-export type ExerciseSource = "pdf-current" | "excel-upper";
+export type ExerciseSource = "leg-rehab" | "excel-upper";
 export type WorkoutType = "leg" | "upper";
 export type TrainingType = WorkoutType | "aerobic";
 export type MobilitySlot = "morning" | "midday" | "siesta" | "night";
+export type LegDay = "A" | "B";
 
 export interface Exercise {
   id: string;
@@ -16,6 +17,9 @@ export interface Exercise {
   targetReps?: string;
   tempo?: string;
   effortTarget?: string;
+  prescriptionLeft?: string;
+  prescriptionRight?: string;
+  tracksWeight?: boolean;
 }
 
 export interface WorkoutTemplateExercise {
@@ -35,6 +39,7 @@ export interface WorkoutTemplate {
   monthId?: string;
   monthLabel?: string;
   upperDay?: 1 | 2;
+  legDay?: LegDay;
   exercises: WorkoutTemplateExercise[];
 }
 
@@ -62,6 +67,15 @@ export interface SetEntry {
   effort?: string;
 }
 
+export interface ExerciseCheck {
+  id: string;
+  date: string;
+  templateId: string;
+  exerciseId: string;
+  order: number;
+  createdAt: string;
+}
+
 export interface MetaRecord {
   key: string;
   value: string;
@@ -74,5 +88,6 @@ export interface BackupPayload {
   templates: WorkoutTemplate[];
   sessions: WorkoutSession[];
   setEntries: SetEntry[];
+  exerciseChecks: ExerciseCheck[];
   meta: MetaRecord[];
 }
