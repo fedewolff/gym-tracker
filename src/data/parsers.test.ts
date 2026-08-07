@@ -28,7 +28,7 @@ describe("data seed", () => {
     const balance = exercises.find((exercise) => exercise.name === "Equilibrio en la pared");
     expect(balance).toMatchObject({
       block: "2. Día de pierna",
-      prescriptionLeft: '3" cada pierna',
+      prescriptionLeft: "10 reps",
       prescriptionRight: "-",
       tracksWeight: false,
     });
