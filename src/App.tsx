@@ -551,8 +551,8 @@ function TrainView({
             <label>
               Día
               <select value={selectedLegDay} onChange={(event) => setSelectedLegDay(event.target.value as LegDay)}>
-                <option value="A">Día A · Control de extensión (3x/semana)</option>
-                <option value="B">Día B · Fuerza pesada (2x/semana)</option>
+                <option value="A">Día A · Pierna</option>
+                <option value="B">Día B · Trote</option>
               </select>
             </label>
           </div>
@@ -562,9 +562,21 @@ function TrainView({
       {Number(painLevel) > 3 ? <div className="pain-warning">Dolor mayor a 3 registrado</div> : null}
 
       <div className="routine-title">
-        <span>{isLegPlan ? "Rehabilitación rodilla (30/06 → 30/07)" : template.monthLabel ?? "Plan tendón"}</span>
+        <span>{isLegPlan ? "Rehabilitación rodilla" : template.monthLabel ?? "Plan tendón"}</span>
         <h2>{template.name}</h2>
       </div>
+
+      {isLegPlan ? (
+        <a
+          className="plan-attachment"
+          href={`${import.meta.env.BASE_URL}plan-pierna.jpg`}
+          target="_blank"
+          rel="noreferrer"
+        >
+          <img src={`${import.meta.env.BASE_URL}plan-pierna.jpg`} alt="Foto del plan de rehabilitación" />
+          <span>Ver plan original (foto)</span>
+        </a>
+      ) : null}
 
       <div className="day-progress" data-testid="day-progress">
         <div>

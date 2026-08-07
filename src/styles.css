@@ -237,6 +237,29 @@ textarea:focus {
   padding: 4px 2px;
 }
 
+.plan-attachment {
+  align-items: center;
+  color: var(--muted-strong);
+  display: flex;
+  font-size: 0.78rem;
+  font-weight: 700;
+  gap: 10px;
+  margin: 2px 2px 8px;
+  text-decoration: none;
+}
+
+.plan-attachment img {
+  border: 1px solid var(--line, rgba(255, 255, 255, 0.12));
+  border-radius: 8px;
+  height: 44px;
+  object-fit: cover;
+  width: 60px;
+}
+
+.plan-attachment:hover span {
+  text-decoration: underline;
+}
+
 .calendar-panel {
   display: grid;
   gap: 12px;

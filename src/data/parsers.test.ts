@@ -12,65 +12,56 @@ const EXPECTED_UPPER_COUNTS = {
 } as const;
 
 const WEIGHTED_EXERCISES = [
-  "Camilla de cuádriceps + rotación externa + pelota entre pies",
-  "GYM: Camilla de cuádriceps excéntrica con tempos",
-  "GYM: Prensa excéntrica (2 arriba / 1 abajo)",
+  "Step-up al cajón con barra",
+  "Búlgara con barra sobre la cabeza",
+  "Cuádriceps izquierdo con BFR",
+  "Isquios en camilla",
 ];
 
 describe("data seed", () => {
   it("builds the rehab plan with every sheet field preserved", () => {
     const exercises = buildRehabExercises(REHAB_PLAN_ROWS);
 
-    expect(exercises).toHaveLength(28);
+    expect(exercises).toHaveLength(29);
     expect(exercises.every((exercise) => exercise.group === "Pierna" && exercise.source === "leg-rehab")).toBe(true);
 
-    const stepRaise = exercises.find((exercise) => exercise.name === "Elevación lateral de pierna en step");
-    expect(stepRaise).toMatchObject({
-      block: "1. Entrada en calor + core (todos los días)",
-      prescriptionLeft: "3x6",
-      prescriptionRight: "3x6",
+    const balance = exercises.find((exercise) => exercise.name === "Equilibrio en la pared");
+    expect(balance).toMatchObject({
+      block: "2. Día de pierna",
+      prescriptionLeft: '3" cada pierna',
+      prescriptionRight: "-",
       tracksWeight: false,
-      videoUrl: "https://www.youtube.com/results?search_query=standing+hip+abduction+on+step",
     });
-    expect(stepRaise?.notes).toContain("Recordar bajar cadera");
+    expect(balance?.notes).toContain("No inclinar el tronco");
 
-    const tke = exercises.find((exercise) => exercise.name === "TKE unilateral con tronco adelante");
-    expect(tke).toMatchObject({ prescriptionLeft: "3x6", prescriptionRight: "1x6" });
-    expect(tke?.notes).toContain("Banda detrás de la rodilla");
+    const hamstrings = exercises.find((exercise) => exercise.name === "Isquios en camilla");
+    expect(hamstrings).toMatchObject({ prescriptionLeft: "3x6", prescriptionRight: "2x6", tracksWeight: true });
   });
 
-  it("marks weight tracking only on the leg press and quad extension machines", () => {
+  it("marks weight tracking only on the loaded barbell and machine exercises", () => {
     const exercises = buildRehabExercises(REHAB_PLAN_ROWS);
     const weighted = exercises.filter((exercise) => exercise.tracksWeight).map((exercise) => exercise.name);
 
     expect(weighted.sort()).toEqual([...WEIGHTED_EXERCISES].sort());
   });
 
-  it("splits the rehab plan into leg day A and B templates with shared warmup and stretching", () => {
+  it("splits the rehab plan into leg day A (pierna) and B (trote) with shared warmup and stretching", () => {
     const templates = buildWorkoutTemplates(REHAB_PLAN_ROWS, UPPER_MONTH_ROWS);
     const legA = templates.find((template) => template.type === "leg" && template.legDay === "A");
     const legB = templates.find((template) => template.type === "leg" && template.legDay === "B");
 
-    expect(legA).toMatchObject({ id: "template-leg-a", name: "Pierna A" });
-    expect(legB).toMatchObject({ id: "template-leg-b", name: "Pierna B" });
-    expect(legA?.exercises).toHaveLength(23);
-    expect(legB?.exercises).toHaveLength(22);
+    expect(legA).toMatchObject({ id: "template-leg-a", name: "Pierna" });
+    expect(legB).toMatchObject({ id: "template-leg-b", name: "Trote" });
+    expect(legA?.exercises).toHaveLength(26);
+    expect(legB?.exercises).toHaveLength(11);
 
     const blocksA = Array.from(new Set(legA?.exercises.map((item) => item.block)));
     const blocksB = Array.from(new Set(legB?.exercises.map((item) => item.block)));
-    expect(blocksA).toEqual([
-      "1. Entrada en calor + core (todos los días)",
-      "2. Rodilla Día A (3x/semana) — Control de extensión",
-      "4. Elongación (todos los días, post A y B)",
-    ]);
-    expect(blocksB).toEqual([
-      "1. Entrada en calor + core (todos los días)",
-      "3. Rodilla Día B (2x/semana) — Fuerza pesada",
-      "4. Elongación (todos los días, post A y B)",
-    ]);
+    expect(blocksA).toEqual(["1. Entrada en calor", "2. Día de pierna", "3. Elongación"]);
+    expect(blocksB).toEqual(["1. Entrada en calor", "2. Trote", "3. Elongación"]);
 
-    expect(legA?.exercises.map((item) => item.order)).toEqual(Array.from({ length: 23 }, (_, index) => index + 1));
-    expect(legB?.exercises.map((item) => item.order)).toEqual(Array.from({ length: 22 }, (_, index) => index + 1));
+    expect(legA?.exercises.map((item) => item.order)).toEqual(Array.from({ length: 26 }, (_, index) => index + 1));
+    expect(legB?.exercises.map((item) => item.order)).toEqual(Array.from({ length: 11 }, (_, index) => index + 1));
   });
 
   it("loads all real upper-body months with Superior 1 and Superior 2", () => {

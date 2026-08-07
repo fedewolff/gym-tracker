@@ -7,7 +7,7 @@ import {
 } from "./parsers";
 import { argentinaMonthIndex, argentinaYear } from "../lib/dates";
 
-export const SEED_VERSION = "2026-07-02-v3-rehab";
+export const SEED_VERSION = "2026-08-07-v5-leg-ab-run";
 
 export interface SeedData {
   exercises: Exercise[];

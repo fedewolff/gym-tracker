@@ -32,10 +32,10 @@ export function buildRehabExercises(rows: RehabPlanRow[]): Exercise[] {
 }
 
 function buildLegTemplate(rows: RehabPlanRow[], legDay: LegDay): WorkoutTemplate {
-  const dayRows = rows.filter((row) => row.days === "both" || row.days === legDay);
+  const dayRows = rows.filter((row) => row.day === "both" || row.day === legDay);
   return {
     id: `template-leg-${legDay.toLowerCase()}`,
-    name: `Pierna ${legDay}`,
+    name: legDay === "A" ? "Pierna" : "Trote",
     type: "leg",
     legDay,
     exercises: dayRows.map((row, index) => ({
